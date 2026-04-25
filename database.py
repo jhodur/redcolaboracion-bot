@@ -118,8 +118,8 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS redemptions (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id         INTEGER REFERENCES users(user_id),
-            reward_id       INTEGER REFERENCES rewards(id),
+            user_id         INTEGER,
+            reward_id       INTEGER,
             points_used     INTEGER NOT NULL,
             voucher_code    TEXT UNIQUE,
             status          TEXT DEFAULT 'active',

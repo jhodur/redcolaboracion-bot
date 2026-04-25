@@ -275,6 +275,62 @@ def admin_delete_ally(aid):
     return jsonify({"ok": True})
 
 
+@app.route("/api/admin/debug/refund/<int:user_id>/<int:points>", methods=["POST"])
+def admin_refund_points(user_id, points):
+    """Devuelve puntos a un usuario (para casos de canjes fallidos)."""
+    db.init_db()
+    try:
+        db.add_points(user_id, points)
+        u = db.get_user(user_id)
+        return jsonify({"ok": True, "user": u})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/admin/debug/fix-redemptions-fk", methods=["POST"])
+def admin_fix_redemptions_fk():
+    """
+    Recrea la tabla redemptions sin FK constraint a rewards.
+    El reward_id ahora puede apuntar a ally_products o cualquier ID.
+    Migra los datos existentes.
+    """
+    db.init_db()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        # Verificar si ya está migrada
+        info = cur.execute("PRAGMA table_info(redemptions)").fetchall()
+        # Crear tabla temporal sin FK
+        cur.executescript("""
+            CREATE TABLE IF NOT EXISTS redemptions_new (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id         INTEGER,
+                reward_id       INTEGER,
+                points_used     INTEGER NOT NULL,
+                voucher_code    TEXT UNIQUE,
+                status          TEXT DEFAULT 'active',
+                redeemed_at     TEXT DEFAULT (datetime('now')),
+                used_at         TEXT
+            );
+        """)
+        # Copiar datos
+        cur.execute("""
+            INSERT INTO redemptions_new (id, user_id, reward_id, points_used, voucher_code, status, redeemed_at, used_at)
+            SELECT id, user_id, reward_id, points_used, voucher_code, status, redeemed_at, used_at
+            FROM redemptions
+        """)
+        copied = cur.rowcount
+        # Drop tabla vieja, renombrar nueva
+        cur.execute("DROP TABLE redemptions")
+        cur.execute("ALTER TABLE redemptions_new RENAME TO redemptions")
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True, "rows_migrated": copied, "old_columns": [c[1] for c in info]})
+    except Exception as e:
+        import traceback
+        return jsonify({"ok": False, "error": str(e), "traceback": traceback.format_exc()}), 500
+
+
 @app.route("/api/admin/debug/simulate-redeem")
 def admin_simulate_redeem():
     """Simula un canje sin enviar mensajes Telegram para diagnosticar."""
