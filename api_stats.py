@@ -275,6 +275,56 @@ def admin_delete_ally(aid):
     return jsonify({"ok": True})
 
 
+@app.route("/api/admin/debug/simulate-redeem")
+def admin_simulate_redeem():
+    """Simula un canje sin enviar mensajes Telegram para diagnosticar."""
+    db.init_db()
+    import secrets, traceback
+    from voucher import generate_voucher
+
+    user_id = int(request.args.get("user_id", 0))
+    product_id = int(request.args.get("product_id", 0))
+
+    steps = []
+    try:
+        steps.append({"step": "get_user", "user_id": user_id})
+        user = db.get_user(user_id)
+        steps[-1]["result"] = user
+
+        steps.append({"step": "get_product", "product_id": product_id})
+        product = db.get_product(product_id)
+        steps[-1]["result"] = product
+
+        if not product:
+            return jsonify({"ok": False, "steps": steps, "error": "product not found"})
+        if not product.get("is_active"):
+            return jsonify({"ok": False, "steps": steps, "error": "product not active"})
+        if product.get("points_required", 0) <= 0:
+            return jsonify({"ok": False, "steps": steps, "error": "points_required <= 0"})
+        if not user or user["points"] < product["points_required"]:
+            return jsonify({"ok": False, "steps": steps,
+                            "error": f"insufficient points: have={user['points'] if user else 0}, need={product['points_required']}"})
+
+        steps.append({"step": "generate_voucher_test"})
+        path = generate_voucher(
+            user_name=user["full_name"],
+            reward_name=product["name"],
+            provider=product["provider"],
+            points_used=product["points_required"],
+            new_balance=user["points"] - product["points_required"],
+            voucher_code="SIMULATE"
+        )
+        steps[-1]["voucher_path"] = path
+        steps[-1]["voucher_exists"] = os.path.exists(path) if path else False
+
+        return jsonify({"ok": True, "steps": steps,
+                        "would_succeed": True,
+                        "would_use_points": product["points_required"]})
+    except Exception as e:
+        return jsonify({"ok": False, "steps": steps,
+                        "error": str(e), "traceback": traceback.format_exc()})
+
+
 @app.route("/api/admin/debug/test-voucher/<int:product_id>")
 def admin_test_voucher(product_id):
     """Genera un voucher de prueba para diagnosticar."""
