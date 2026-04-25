@@ -275,6 +275,76 @@ def admin_delete_ally(aid):
     return jsonify({"ok": True})
 
 
+@app.route("/api/admin/scheduled")
+def admin_scheduled():
+    """Lista los scheduled_tasks recientes para debugging."""
+    db.init_db()
+    rows = _raw_query("""
+        SELECT st.id, st.task_id, st.send_at, st.sent, st.message_id,
+               st.auto_generated, st.slot_time,
+               t.title, t.is_active as task_active
+        FROM scheduled_tasks st
+        LEFT JOIN tasks t ON t.id = st.task_id
+        ORDER BY st.id DESC
+        LIMIT 50
+    """)
+    return jsonify(rows)
+
+
+@app.route("/api/admin/run-pending-tasks", methods=["POST"])
+def admin_run_pending_tasks():
+    """Fuerza envío de tareas pendientes via Telegram Bot API directamente."""
+    import requests
+    from config import BOT_TOKEN, GROUP_CHAT_ID, PROJECT_NAME
+    db.init_db()
+
+    pending = _raw_query("""
+        SELECT st.id, st.task_id,
+               t.title, t.description, t.instructions, t.target_url, t.points_value
+        FROM scheduled_tasks st
+        JOIN tasks t ON t.id = st.task_id
+        WHERE st.sent = 0 AND st.send_at <= datetime('now') AND t.is_active = 1
+        ORDER BY st.send_at ASC
+    """)
+
+    sent = []
+    errors = []
+    for task in pending:
+        url_line = f"\n\n🔗 Enlace: {task['target_url']}" if task.get("target_url") else ""
+        text = (
+            f"📢 Nueva Tarea — {PROJECT_NAME}!\n\n"
+            f"📌 {task['title']}\n\n"
+            f"{task['description']}\n\n"
+            f"📋 ¿Cómo completarla?\n"
+            f"{task['instructions']}"
+            f"{url_line}\n\n"
+            f"💰 Vale: {task['points_value']} puntos\n\n"
+            f"✅ Cuando termines, envía el screenshot al bot en privado:\n"
+            f"👉 @Redcolaboracion_bot"
+        )
+        try:
+            r = requests.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                json={"chat_id": GROUP_CHAT_ID, "text": text},
+                timeout=15
+            )
+            data = r.json()
+            if data.get("ok"):
+                msg_id = data["result"]["message_id"]
+                conn = sqlite3.connect(DB_PATH)
+                conn.execute("UPDATE scheduled_tasks SET sent=1, message_id=? WHERE id=?",
+                             (msg_id, task["id"]))
+                conn.commit()
+                conn.close()
+                sent.append({"id": task["id"], "title": task["title"], "message_id": msg_id})
+            else:
+                errors.append({"id": task["id"], "error": data})
+        except Exception as e:
+            errors.append({"id": task["id"], "error": str(e)})
+
+    return jsonify({"sent": sent, "errors": errors, "total": len(pending)})
+
+
 @app.route("/api/admin/tasks")
 def admin_tasks():
     db.init_db()
