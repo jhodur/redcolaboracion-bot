@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Registro de Empresa — Red Colaboracion</title>
+<style>
+  :root {
+    --bg: #0f1b2d;
+    --card: #162236;
+    --accent: #ffc107;
+    --accent2: #e6ac00;
+    --text: #e8ecf1;
+    --subtle: #8a9bb5;
+    --input-bg: #1c3050;
+    --input-border: #2a4a6b;
+    --success: #2ea043;
+    --error: #e53935;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #1a2d47 0%, #0f1b2d 100%);
+    border-bottom: 3px solid var(--accent);
+    padding: 30px 20px;
+    text-align: center;
+  }
+  .header h1 {
+    color: var(--accent);
+    font-size: 1.8rem;
+    margin-bottom: 6px;
+  }
+  .header p {
+    color: var(--subtle);
+    font-size: 0.95rem;
+    max-width: 500px;
+    margin: 0 auto;
+  }
+  .logo-badge {
+    display: inline-block;
+    background: var(--accent);
+    color: var(--bg);
+    font-weight: 800;
+    font-size: 1rem;
+    padding: 6px 18px;
+    border-radius: 20px;
+    margin-bottom: 12px;
+  }
+
+  .container {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 30px 20px 60px;
+  }
+
+  .section {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+    border: 1px solid var(--input-border);
+  }
+  .section h2 {
+    color: var(--accent);
+    font-size: 1.15rem;
+    margin-bottom: 18px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--input-border);
+  }
+
+  .field {
+    margin-bottom: 16px;
+  }
+  .field label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--subtle);
+    margin-bottom: 5px;
+    font-weight: 600;
+  }
+  .field label .required {
+    color: var(--accent);
+  }
+  .field input, .field textarea, .field select {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.95rem;
+    transition: border-color 0.2s;
+  }
+  .field input:focus, .field textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .field textarea { resize: vertical; min-height: 80px; }
+
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 500px) {
+    .field-row { grid-template-columns: 1fr; }
+  }
+
+  .file-upload {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .file-upload input[type="file"] {
+    display: none;
+  }
+  .file-upload .upload-btn {
+    background: var(--input-bg);
+    border: 1px dashed var(--input-border);
+    border-radius: 8px;
+    padding: 12px 18px;
+    cursor: pointer;
+    color: var(--subtle);
+    font-size: 0.85rem;
+    transition: border-color 0.2s;
+    flex: 1;
+    text-align: center;
+  }
+  .file-upload .upload-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .file-upload .preview {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 2px solid var(--input-border);
+    display: none;
+  }
+
+  /* Productos */
+  .product-card {
+    background: var(--input-bg);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 12px;
+    border: 1px solid var(--input-border);
+    position: relative;
+  }
+  .product-card .remove-product {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: var(--error);
+    cursor: pointer;
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+  .product-card h3 {
+    color: var(--text);
+    font-size: 0.9rem;
+    margin-bottom: 12px;
+  }
+
+  .add-product-btn {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    border: 2px dashed var(--input-border);
+    border-radius: 10px;
+    color: var(--accent);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .add-product-btn:hover {
+    border-color: var(--accent);
+    background: rgba(255,193,7,0.05);
+  }
+
+  .submit-btn {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    border-radius: var(--radius);
+    color: var(--bg);
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.2s;
+    margin-top: 10px;
+  }
+  .submit-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(255,193,7,0.3);
+  }
+  .submit-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .alert {
+    padding: 14px 18px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .alert.success {
+    background: rgba(46,160,67,0.15);
+    border: 1px solid var(--success);
+    color: #4ade80;
+    display: block;
+  }
+  .alert.error {
+    background: rgba(229,57,53,0.15);
+    border: 1px solid var(--error);
+    color: #f87171;
+    display: block;
+  }
+
+  .success-screen {
+    text-align: center;
+    padding: 60px 20px;
+  }
+  .success-screen .check {
+    font-size: 4rem;
+    margin-bottom: 16px;
+  }
+  .success-screen h2 {
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .success-screen p {
+    color: var(--subtle);
+    max-width: 400px;
+    margin: 0 auto;
+  }
+
+  .footer {
+    text-align: center;
+    padding: 20px;
+    color: var(--subtle);
+    font-size: 0.8rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo-badge">RED COLABORACION</div>
+  <h1>Registro de Empresa Aliada</h1>
+  <p>Completa el formulario para unirte a nuestra red de turismo colaborativo y ofrecer tus productos como premios.</p>
+</div>
+
+<div class="container">
+  <div id="alertBox" class="alert"></div>
+
+  <form id="registroForm" enctype="multipart/form-data">
+
+    <!-- Datos de la empresa -->
+    <div class="section">
+      <h2>Datos de la Empresa</h2>
+
+      <div class="field">
+        <label>Nombre de la empresa <span class="required">*</span></label>
+        <input type="text" name="business_name" required placeholder="Ej: Wila Hostal">
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Nombre del propietario/contacto</label>
+          <input type="text" name="owner_name" placeholder="Nombre completo">
+        </div>
+        <div class="field">
+          <label>Ciudad</label>
+          <input type="text" name="city" placeholder="Ej: Salento, Quindio">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Ubicacion / Direccion</label>
+        <input type="text" name="location" placeholder="Direccion o referencia de ubicacion">
+      </div>
+
+      <div class="field">
+        <label>Descripcion de la empresa</label>
+        <textarea name="description" placeholder="Cuenta brevemente que ofrece tu empresa, que la hace especial..."></textarea>
+      </div>
+
+      <div class="field">
+        <label>Foto de la empresa</label>
+        <div class="file-upload">
+          <label class="upload-btn" id="bizPhotoLabel">
+            Haz clic para subir una foto
+          </label>
+          <input type="file" name="business_photo" id="bizPhoto" accept="image/*">
+          <img class="preview" id="bizPreview">
+        </div>
+      </div>
+    </div>
+
+    <!-- Contacto -->
+    <div class="section">
+      <h2>Contacto y Redes</h2>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Telefono / WhatsApp</label>
+          <input type="tel" name="phone" placeholder="+57 3XX XXX XXXX">
+        </div>
+        <div class="field">
+          <label>Correo electronico</label>
+          <input type="email" name="email" placeholder="correo@empresa.com">
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Instagram</label>
+          <input type="text" name="instagram" placeholder="@usuario">
+        </div>
+        <div class="field">
+          <label>Facebook</label>
+          <input type="text" name="facebook" placeholder="Pagina o perfil">
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Usuario de Telegram <span class="required">*</span></label>
+          <input type="text" name="telegram_user" placeholder="@usuario_telegram" required>
+        </div>
+        <div class="field">
+          <label>Sitio web</label>
+          <input type="url" name="website" placeholder="https://...">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Tareas a promocionar por semana</label>
+        <select name="tasks_per_week" style="width:100%;padding:10px 14px;background:var(--input-bg);border:1px solid var(--input-border);border-radius:8px;color:var(--text);font-size:0.95rem">
+          <option value="3">3 tareas / semana — Plan Basico</option>
+          <option value="5">5 tareas / semana — Plan Estandar</option>
+          <option value="7" selected>7 tareas / semana — Plan Pro</option>
+          <option value="14">14 tareas / semana — Plan Premium</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Productos -->
+    <div class="section">
+      <h2>Productos o Servicios</h2>
+      <p style="color:var(--subtle);font-size:0.85rem;margin-bottom:16px;">
+        Agrega los productos o servicios que ofreces como premios canjeables. Puedes agregar hasta 10.
+      </p>
+
+      <div id="productsContainer"></div>
+
+      <button type="button" class="add-product-btn" id="addProductBtn">
+        + Agregar producto
+      </button>
+    </div>
+
+    <button type="submit" class="submit-btn" id="submitBtn">
+      Enviar Registro
+    </button>
+
+  </form>
+
+  <div id="successScreen" class="success-screen" style="display:none;">
+    <div class="check">&#10003;</div>
+    <h2>Registro Exitoso</h2>
+    <p>Tu empresa ha sido registrada correctamente. Nuestro equipo revisara tu informacion y te contactaremos pronto para activarte en la red.</p>
+  </div>
+</div>
+
+<div class="footer">
+  Red Colaboracion &mdash; Turismo Colaborativo &copy; 2026
+</div>
+
+<script>
+const container = document.getElementById('productsContainer');
+const addBtn = document.getElementById('addProductBtn');
+let productCount = 0;
+
+function addProduct() {
+  if (productCount >= 10) return;
+  const idx = productCount;
+  const card = document.createElement('div');
+  card.className = 'product-card';
+  card.innerHTML = `
+    <button type="button" class="remove-product" onclick="this.parentElement.remove()">&times;</button>
+    <h3>Producto ${idx + 1}</h3>
+    <div class="field">
+      <label>Nombre del producto <span class="required">*</span></label>
+      <input type="text" name="product_name_${idx}" required placeholder="Ej: Bebida de Bienvenida">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Descripcion</label>
+        <input type="text" name="product_desc_${idx}" placeholder="Breve descripcion">
+      </div>
+      <div class="field">
+        <label>Precio</label>
+        <input type="text" name="product_price_${idx}" placeholder="Ej: $15.000 COP">
+      </div>
+    </div>
+    <div class="field">
+      <label>Foto del producto</label>
+      <div class="file-upload">
+        <label class="upload-btn" id="prodLabel_${idx}">
+          Haz clic para subir foto
+        </label>
+        <input type="file" name="product_photo_${idx}" id="prodPhoto_${idx}" accept="image/*">
+        <img class="preview" id="prodPreview_${idx}">
+      </div>
+    </div>
+  `;
+  container.appendChild(card);
+
+  // File upload preview
+  const fileInput = card.querySelector(`#prodPhoto_${idx}`);
+  const label = card.querySelector(`#prodLabel_${idx}`);
+  const preview = card.querySelector(`#prodPreview_${idx}`);
+  label.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) {
+      preview.src = URL.createObjectURL(fileInput.files[0]);
+      preview.style.display = 'block';
+      label.textContent = fileInput.files[0].name;
+    }
+  });
+
+  productCount++;
+  if (productCount >= 10) addBtn.style.display = 'none';
+}
+
+// Agregar 1 producto por defecto
+addProduct();
+addBtn.addEventListener('click', addProduct);
+
+// Business photo preview
+const bizPhoto = document.getElementById('bizPhoto');
+const bizLabel = document.getElementById('bizPhotoLabel');
+const bizPreview = document.getElementById('bizPreview');
+bizLabel.addEventListener('click', () => bizPhoto.click());
+bizPhoto.addEventListener('change', () => {
+  if (bizPhoto.files[0]) {
+    bizPreview.src = URL.createObjectURL(bizPhoto.files[0]);
+    bizPreview.style.display = 'block';
+    bizLabel.textContent = bizPhoto.files[0].name;
+  }
+});
+
+// Submit
+document.getElementById('registroForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('submitBtn');
+  const alertBox = document.getElementById('alertBox');
+  alertBox.className = 'alert';
+  alertBox.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+
+  try {
+    const formData = new FormData(e.target);
+    const resp = await fetch('/api/registro', { method: 'POST', body: formData });
+    const data = await resp.json();
+
+    if (data.ok) {
+      document.getElementById('registroForm').style.display = 'none';
+      document.getElementById('successScreen').style.display = 'block';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      alertBox.textContent = data.error || 'Error al enviar el formulario';
+      alertBox.className = 'alert error';
+      btn.disabled = false;
+      btn.textContent = 'Enviar Registro';
+    }
+  } catch (err) {
+    alertBox.textContent = 'Error de conexion. Intenta de nuevo.';
+    alertBox.className = 'alert error';
+    btn.disabled = false;
+    btn.textContent = 'Enviar Registro';
+  }
+});
+</script>
+
+</body>
+</html>

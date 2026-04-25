@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Red Colaboracion</title>
+<style>
+:root{--bg:#0b1422;--card:#131f33;--card2:#1a2b45;--accent:#ffc107;--accent2:#e6ac00;--text:#e0e6ed;--subtle:#6b83a0;--green:#2ea043;--red:#e53935;--blue:#2196f3;--orange:#ff9800;--border:#1e3352;--input-bg:#162236;--radius:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* Login */
+.login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.login-box{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:40px;width:100%;max-width:380px;text-align:center}
+.login-box h2{color:var(--accent);margin-bottom:20px}
+.login-box input{width:100%;padding:12px;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:1rem;margin-bottom:14px}
+.login-box button{width:100%;padding:12px;background:var(--accent);border:none;border-radius:8px;color:var(--bg);font-weight:700;font-size:1rem;cursor:pointer}
+.login-box .err{color:var(--red);font-size:.85rem;margin-top:8px;display:none}
+
+/* Layout */
+.app{display:none}
+.topbar{background:var(--card);border-bottom:2px solid var(--accent);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.topbar h1{color:var(--accent);font-size:1.15rem}
+.topbar .badge{background:var(--accent);color:var(--bg);padding:2px 10px;border-radius:12px;font-size:.75rem;font-weight:700}
+.topbar button{background:none;border:1px solid var(--border);color:var(--subtle);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:.8rem}
+
+.tabs{display:flex;gap:4px;padding:12px 16px;background:var(--card);overflow-x:auto;border-bottom:1px solid var(--border)}
+.tab{padding:8px 16px;background:none;border:none;color:var(--subtle);cursor:pointer;border-radius:8px;font-size:.85rem;font-weight:600;white-space:nowrap;transition:.2s}
+.tab:hover{background:var(--card2);color:var(--text)}
+.tab.active{background:var(--accent);color:var(--bg)}
+
+.content{max-width:1200px;margin:0 auto;padding:20px 16px}
+.panel{display:none}
+.panel.active{display:block}
+
+/* Stats cards */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:24px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;text-align:center}
+.stat-card .num{font-size:2rem;font-weight:800;color:var(--accent)}
+.stat-card .label{font-size:.8rem;color:var(--subtle);margin-top:4px}
+
+/* Tables */
+.table-wrap{overflow-x:auto;background:var(--card);border-radius:var(--radius);border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th{background:var(--card2);color:var(--accent);padding:10px 12px;text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+td{padding:10px 12px;border-top:1px solid var(--border);vertical-align:middle}
+tr:hover td{background:rgba(255,193,7,.03)}
+
+.badge-status{padding:3px 10px;border-radius:12px;font-size:.75rem;font-weight:600}
+.badge-pending{background:rgba(255,152,0,.15);color:var(--orange)}
+.badge-approved{background:rgba(46,160,67,.15);color:var(--green)}
+.badge-active{background:rgba(46,160,67,.15);color:var(--green)}
+.badge-used{background:rgba(107,131,160,.15);color:var(--subtle)}
+.badge-rejected{background:rgba(229,57,53,.15);color:var(--red)}
+
+.btn{padding:5px 12px;border:none;border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:600;transition:.2s}
+.btn-sm{padding:4px 8px;font-size:.72rem}
+.btn-green{background:rgba(46,160,67,.2);color:var(--green)}.btn-green:hover{background:rgba(46,160,67,.35)}
+.btn-red{background:rgba(229,57,53,.2);color:var(--red)}.btn-red:hover{background:rgba(229,57,53,.35)}
+.btn-blue{background:rgba(33,150,243,.2);color:var(--blue)}.btn-blue:hover{background:rgba(33,150,243,.35)}
+.btn-accent{background:var(--accent);color:var(--bg)}.btn-accent:hover{opacity:.9}
+.btn-group{display:flex;gap:4px}
+
+/* Modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.show{display:flex}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;width:100%;max-width:480px}
+.modal h3{color:var(--accent);margin-bottom:16px}
+.modal .field{margin-bottom:12px}
+.modal .field label{display:block;font-size:.8rem;color:var(--subtle);margin-bottom:4px;font-weight:600}
+.modal .field input,.modal .field select{width:100%;padding:8px 12px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+
+.products-list{margin-top:8px}
+.products-list .prod-item{background:var(--input-bg);padding:6px 10px;border-radius:6px;margin-bottom:4px;font-size:.8rem;display:flex;justify-content:space-between;align-items:center}
+
+.section-title{color:var(--accent);font-size:1rem;font-weight:700;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+
+.copy-link{background:var(--input-bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:.78rem;color:var(--blue);cursor:pointer;word-break:break-all}
+.copy-link:hover{border-color:var(--blue)}
+
+.empty{text-align:center;padding:40px;color:var(--subtle);font-size:.9rem}
+
+@media(max-width:600px){
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .tabs{padding:8px 10px}.tab{padding:6px 12px;font-size:.8rem}
+}
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <h2>Panel Admin</h2>
+    <p style="color:var(--subtle);margin-bottom:20px;font-size:.85rem">Red Colaboracion</p>
+    <input type="password" id="passInput" placeholder="Contrasena" autofocus>
+    <button onclick="doLogin()">Ingresar</button>
+    <div class="err" id="loginErr">Contrasena incorrecta</div>
+  </div>
+</div>
+
+<!-- App -->
+<div class="app" id="app">
+  <div class="topbar">
+    <div><h1>Red Colaboracion <span class="badge">ADMIN</span></h1></div>
+    <button onclick="logout()">Cerrar sesion</button>
+  </div>
+
+  <div class="tabs" id="tabsBar">
+    <button class="tab active" data-tab="dashboard">Dashboard</button>
+    <button class="tab" data-tab="allies">Empresas</button>
+    <button class="tab" data-tab="users">Usuarios</button>
+    <button class="tab" data-tab="tasks">Tareas</button>
+    <button class="tab" data-tab="products">Productos</button>
+    <button class="tab" data-tab="rewards">Premios</button>
+    <button class="tab" data-tab="redemptions">Canjes</button>
+    <button class="tab" data-tab="completions">Validaciones</button>
+    <button class="tab" data-tab="stats">Estadisticas</button>
+  </div>
+
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div class="panel active" id="panel-dashboard">
+      <div class="stats-grid" id="statsGrid"></div>
+    </div>
+
+    <!-- EMPRESAS -->
+    <div class="panel" id="panel-allies">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="section-title" style="margin:0;border:0;padding:0">Empresas Aliadas</div>
+        <button class="btn btn-accent" onclick="showNewAlly()">+ Nueva Empresa</button>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>Empresa</th><th>Ciudad</th><th>Contacto</th><th>Telegram</th><th>Productos</th><th>Estado</th><th>Link Productos</th><th>Acciones</th></tr></thead>
+        <tbody id="alliesTable"></tbody>
+      </table></div>
+    </div>
+
+    <!-- USUARIOS -->
+    <div class="panel" id="panel-users">
+      <div class="section-title">Usuarios Registrados</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>Nombre</th><th>Username</th><th>Puntos</th><th>Registro</th><th>Acciones</th></tr></thead>
+        <tbody id="usersTable"></tbody>
+      </table></div>
+    </div>
+
+    <!-- TAREAS -->
+    <div class="panel" id="panel-tasks">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="section-title" style="margin:0;border:0;padding:0">Tareas</div>
+        <button class="btn btn-accent" onclick="showNewTask()">+ Nueva Tarea</button>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>Titulo</th><th>Empresa</th><th>Puntos</th><th>Participantes</th><th>URL</th><th>Estado</th><th>Creada</th><th>Acciones</th></tr></thead>
+        <tbody id="tasksTable"></tbody>
+      </table></div>
+    </div>
+
+    <!-- PRODUCTOS -->
+    <div class="panel" id="panel-products">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="section-title" style="margin:0;border:0;padding:0">Productos por Empresa</div>
+        <button class="btn btn-accent" onclick="showNewProduct()">+ Nuevo Producto</button>
+      </div>
+      <div style="margin-bottom:14px">
+        <select id="productFilter" style="padding:8px 12px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.85rem" onchange="loadProducts()">
+          <option value="all">Todas las empresas</option>
+        </select>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>Empresa</th><th>Producto</th><th>Descripcion</th><th>Precio</th><th>Puntos</th><th>Foto</th><th>Acciones</th></tr></thead>
+        <tbody id="productsTable"></tbody>
+      </table></div>
+    </div>
+
+    <!-- PREMIOS -->
+    <div class="panel" id="panel-rewards">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="section-title" style="margin:0;border:0;padding:0">Premios</div>
+        <button class="btn btn-accent" onclick="showNewReward()">+ Nuevo Premio</button>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>Nombre</th><th>Puntos</th><th>Proveedor</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <tbody id="rewardsTable"></tbody>
+      </table></div>
+    </div>
+
+    <!-- CANJES -->
+    <div class="panel" id="panel-redemptions">
+      <div class="section-title">Canjes Realizados</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>Usuario</th><th>Premio</th><th>Proveedor</th><th>Puntos</th><th>Codigo</th><th>Estado</th><th>Fecha</th></tr></thead>
+        <tbody id="redemptionsTable"></tbody>
+      </table></div>
+    </div>
+
+    <!-- VALIDACIONES -->
+    <div class="panel" id="panel-completions">
+      <div class="section-title">Validaciones de Tareas</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>Usuario</th><th>Tarea</th><th>Puntos</th><th>Estado</th><th>Respuesta IA</th><th>Fecha</th></tr></thead>
+        <tbody id="completionsTable"></tbody>
+      </table></div>
+    </div>
+
+    <!-- ESTADISTICAS -->
+    <div class="panel" id="panel-stats">
+      <div class="section-title">Estadisticas e Informes</div>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:20px">
+        <div>
+          <label style="display:block;font-size:.78rem;color:var(--subtle);margin-bottom:4px">Mes</label>
+          <input type="month" id="statsMonth" style="padding:8px 12px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.85rem">
+        </div>
+        <div>
+          <label style="display:block;font-size:.78rem;color:var(--subtle);margin-bottom:4px">Empresa</label>
+          <select id="statsAllyFilter" style="padding:8px 12px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.85rem;min-width:200px">
+            <option value="all">Todas las empresas</option>
+          </select>
+        </div>
+        <button class="btn btn-accent" onclick="loadStats()">Aplicar filtros</button>
+        <button class="btn btn-green" onclick="exportMonthly()">📥 Exportar Excel</button>
+      </div>
+
+      <!-- OBJETIVOS POR EMPRESA -->
+      <div id="goalsSection" style="display:none;margin-bottom:24px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div class="section-title" style="font-size:.95rem;margin:0;border:0;padding:0">🎯 Objetivos — <span id="goalsAllyName"></span></div>
+          <button class="btn btn-accent btn-sm" onclick="showNewGoal()">+ Nuevo Objetivo</button>
+        </div>
+        <div id="goalsContainer" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px"></div>
+      </div>
+
+      <div class="section-title" style="font-size:.95rem;margin-top:20px">Resumen por Empresa</div>
+      <div class="table-wrap" style="margin-bottom:24px"><table>
+        <thead><tr><th>Empresa</th><th>Tareas activas</th><th>Participantes</th><th>Aprobadas</th><th>Puntos otorgados</th><th>Canjes</th></tr></thead>
+        <tbody id="statsAllyTable"></tbody>
+      </table></div>
+
+      <div class="section-title" style="font-size:.95rem">Detalle por Tarea</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Empresa</th><th>Tarea</th><th>Puntos</th><th>Aprob.</th><th>Pend.</th><th>Rech.</th><th>Usuarios</th><th>Pts otorgados</th></tr></thead>
+        <tbody id="statsTaskTable"></tbody>
+      </table></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal Editar Puntos -->
+<div class="modal-overlay" id="editPointsModal">
+  <div class="modal">
+    <h3>Editar Puntos</h3>
+    <div class="field">
+      <label>Usuario</label>
+      <input type="text" id="epUser" readonly>
+    </div>
+    <div class="field">
+      <label>Puntos</label>
+      <input type="number" id="epPoints" min="0">
+    </div>
+    <input type="hidden" id="epUid">
+    <div class="modal-actions">
+      <button class="btn btn-red" onclick="closeModal('editPointsModal')">Cancelar</button>
+      <button class="btn btn-accent" onclick="savePoints()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Nuevo Premio -->
+<div class="modal-overlay" id="newRewardModal">
+  <div class="modal">
+    <h3>Nuevo Premio</h3>
+    <div class="field"><label>Nombre</label><input type="text" id="nrName"></div>
+    <div class="field"><label>Descripcion</label><input type="text" id="nrDesc"></div>
+    <div class="field"><label>Puntos requeridos</label><input type="number" id="nrPoints" min="1"></div>
+    <div class="field"><label>Proveedor (Empresa)</label><select id="nrProvider" style="width:100%;padding:8px 12px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem"></select></div>
+    <div class="modal-actions">
+      <button class="btn btn-red" onclick="closeModal('newRewardModal')">Cancelar</button>
+      <button class="btn btn-accent" onclick="createReward()">Crear</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Detalle Empresa -->
+<div class="modal-overlay" id="allyDetailModal">
+  <div class="modal" style="max-width:560px">
+    <h3 id="adTitle">Empresa</h3>
+    <div id="adBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-red" onclick="closeModal('allyDetailModal')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Nueva Empresa -->
+<div class="modal-overlay" id="newAllyModal">
+  <div class="modal" style="max-width:560px;max-height:90vh;overflow-y:auto">
+    <h3>Nueva Empresa</h3>
+    <div class="field"><label>Nombre <span style="color:var(--accent)">*</span></label><input type="text" id="naName"></div>
+    <div class="field"><label>Propietario</label><input type="text" id="naOwner"></div>
+    <div class="field"><label>Telefono</label><input type="text" id="naPhone" placeholder="+57 3XX XXX XXXX"></div>
+    <div class="field"><label>Email</label><input type="text" id="naEmail"></div>
+    <div class="field"><label>Ciudad</label><input type="text" id="naCity"></div>
+    <div class="field"><label>Ubicacion</label><input type="text" id="naLocation"></div>
+    <div class="field"><label>Descripcion</label><input type="text" id="naDesc"></div>
+    <div class="field"><label>Instagram</label><input type="text" id="naInstagram" placeholder="@usuario"></div>
+    <div class="field"><label>Facebook</label><input type="text" id="naFacebook"></div>
+    <div class="field"><label>Sitio web</label><input type="text" id="naWebsite"></div>
+    <div class="field"><label>Telegram</label><input type="text" id="naTelegram" placeholder="@usuario_telegram"></div>
+    <div class="field"><label>Tareas por semana (plan)</label>
+      <select id="naTasksWeek" style="width:100%;padding:8px 12px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem">
+        <option value="3">3 / semana — Basico</option>
+        <option value="5">5 / semana — Estandar</option>
+        <option value="7" selected>7 / semana — Pro</option>
+        <option value="14">14 / semana — Premium</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-red" onclick="closeModal('newAllyModal')">Cancelar</button>
+      <button class="btn btn-accent" onclick="createAlly()">Crear Empresa</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Editar Empresa -->
+<div class="modal-overlay" id="editAllyModal">
+  <div class="modal" style="max-width:560px;max-height:90vh;overflow-y:auto">
+    <h3>Editar Empresa</h3>
+    <input type="hidden" id="eaId">
+    <div class="field"><label>Nombre</label><input type="text" id="eaName"></div>
+    <div class="field"><label>Propietario</label><input type="text" id="eaOwner"></div>
+    <div class="field"><label>Telefono</label><input type="text" id="eaPhone"></div>
+    <div class="field"><label>Email</label><input type="text" id="eaEmail"></div>
+    <div class="field"><label>Ciudad</label><input type="text" id="eaCity"></div>
+    <div class="field"><label>Ubicacion</label><input type="text" id="eaLocation"></div>
+    <div class="field"><label>Descripcion</label><input type="text" id="eaDesc"></div>
+    <div class="field"><label>Instagram</label><input type="text" id="eaInstagram"></div>
+    <div class="field"><label>Facebook</label><input type="text" id="eaFacebook"></div>
+    <div class="field"><label>Sitio web</label><input type="text" id="eaWebsite"></div>
+    <div class="field"><label>Telegram</label><input type="text" id="eaTelegram" placeholder="@usuario"></div>
+    <div class="field"><label>Tareas por semana (plan)</label>
+      <select id="eaTasksWeek" style="width:100%;padding:8px 12px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem">
+        <option value="3">3 / semana — Basico</option>
+        <option value="5">5 / semana — Estandar</option>
+        <option value="7">7 / semana — Pro</option>
+        <option value="14">14 / semana — Premium</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-red" onclick="closeModal('editAllyModal')">Cancelar</button>
+      <button class="btn btn-accent" onclick="saveAlly()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Nuevo Producto -->
+<div class="modal-overlay" id="newProductModal">
+  <div class="modal">
+    <h3>Nuevo Producto</h3>
+    <div class="field"><label>Empresa <span style="color:var(--accent)">*</span></label><select id="npAllyId" style="width:100%;padding:8px 12px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem"></select></div>
+    <div class="field"><label>Nombre <span style="color:var(--accent)">*</span></label><input type="text" id="npName"></div>
+    <div class="field"><label>Descripcion</label><input type="text" id="npDesc"></div>
+    <div class="field"><label>Precio</label><input type="text" id="npPrice" placeholder="$XX.XXX COP"></div>
+    <div class="field"><label>Puntos para canjear (0 = no canjeable)</label><input type="number" id="npPoints" min="0" value="0"></div>
+    <div class="modal-actions">
+      <button class="btn btn-red" onclick="closeModal('newProductModal')">Cancelar</button>
+      <button class="btn btn-accent" onclick="createProduct()">Crear</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Editar Producto -->
+<div class="modal-overlay" id="editProductModal">
+  <div class="modal">
+    <h3>Editar Producto</h3>
+    <input type="hidden" id="eprodId">
+    <div class="field"><label>Empresa</label><select id="eprodAllyId" style="width:100%;padding:8px 12px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem"></select></div>
+    <div class="field"><label>Nombre</label><input type="text" id="eprodName"></div>
+    <div class="field"><label>Descripcion</label><input type="text" id="eprodDesc"></div>
+    <div class="field"><label>Precio</label><input type="text" id="eprodPrice"></div>
+    <div class="field"><label>Puntos para canjear (0 = no canjeable)</label><input type="number" id="eprodPoints" min="0"></div>
+    <div class="modal-actions">
+      <button class="btn btn-red" onclick="closeModal('editProductModal')">Cancelar</button>
+      <button class="btn btn-accent" onclick="saveProduct()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Objetivo (crear/editar) -->
+<div class="modal-overlay" id="goalModal">
+  <div class="modal">
+    <h3 id="goalModalTitle">Nuevo Objetivo</h3>
+    <input type="hidden" id="goalId">
+    <input type="hidden" id="goalAllyId">
+    <div class="field"><label>Tipo de objetivo</label>
+      <select id="goalType" style="width:100%;padding:8px 12px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem">
+        <option value="follow_facebook">📘 Seguir en Facebook</option>
+        <option value="follow_instagram">📷 Seguir en Instagram</option>
+        <option value="like_facebook">👍 Like en Facebook</option>
+        <option value="like_instagram">❤️ Like en Instagram</option>
+        <option value="comment">💬 Comentarios</option>
+        <option value="repost">🔁 Reposts / Compartir</option>
+        <option value="review_google">⭐ Reseña en Google</option>
+        <option value="follow_tiktok">🎵 Seguir en TikTok</option>
+        <option value="custom">✏️ Personalizado</option>
+      </select>
+    </div>
+    <div class="field"><label>Meta (objetivo numerico)</label><input type="number" id="goalTarget" min="0" value="100"></div>
+    <div class="field"><label>Acumulado actual</label><input type="number" id="goalCurrent" min="0" value="0"></div>
+    <div class="field"><label>Periodo</label>
+      <select id="goalPeriod" style="width:100%;padding:8px 12px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem">
+        <option value="monthly">Mensual</option>
+        <option value="weekly">Semanal</option>
+        <option value="total">Total acumulado</option>
+      </select>
+    </div>
+    <div class="field"><label>Notas (opcional)</label><input type="text" id="goalNotes" placeholder="Descripcion o detalles"></div>
+    <div class="modal-actions">
+      <button class="btn btn-red" onclick="closeModal('goalModal')">Cancelar</button>
+      <button class="btn btn-accent" onclick="saveGoal()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Editar Tarea -->
+<div class="modal-overlay" id="editTaskModal">
+  <div class="modal" style="max-width:560px;max-height:90vh;overflow-y:auto">
+    <h3>Editar Tarea</h3>
+    <input type="hidden" id="etId">
+    <div class="field"><label>Empresa <span style="color:var(--accent)">*</span></label><select id="etAllyId" style="width:100%;padding:8px 12px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem"></select></div>
+    <div class="field"><label>Titulo</label><input type="text" id="etTitle"></div>
+    <div class="field"><label>Descripcion</label><textarea id="etDesc" style="width:100%;padding:8px 12px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;min-height:60px;resize:vertical"></textarea></div>
+    <div class="field"><label>Instrucciones</label><textarea id="etInstructions" style="width:100%;padding:8px 12px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;min-height:60px;resize:vertical"></textarea></div>
+    <div class="field"><label>URL objetivo</label><input type="text" id="etUrl"></div>
+    <div class="field"><label>Puntos</label><input type="number" id="etPoints" min="1"></div>
+    <div class="modal-actions">
+      <button class="btn btn-red" onclick="closeModal('editTaskModal')">Cancelar</button>
+      <button class="btn btn-accent" onclick="saveTask()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Nueva Tarea -->
+<div class="modal-overlay" id="newTaskModal">
+  <div class="modal" style="max-width:560px;max-height:90vh;overflow-y:auto">
+    <h3>Nueva Tarea</h3>
+    <div class="field"><label>Empresa <span style="color:var(--accent)">*</span></label><select id="ntAllyId" style="width:100%;padding:8px 12px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem"></select></div>
+    <div class="field"><label>Titulo <span style="color:var(--accent)">*</span></label><input type="text" id="ntTitle"></div>
+    <div class="field"><label>Descripcion</label><textarea id="ntDesc" style="width:100%;padding:8px 12px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;min-height:60px;resize:vertical"></textarea></div>
+    <div class="field"><label>Instrucciones</label><textarea id="ntInstructions" style="width:100%;padding:8px 12px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;min-height:60px;resize:vertical"></textarea></div>
+    <div class="field"><label>URL objetivo</label><input type="text" id="ntUrl"></div>
+    <div class="field"><label>Puntos</label><input type="number" id="ntPoints" min="1" value="10"></div>
+    <div class="modal-actions">
+      <button class="btn btn-red" onclick="closeModal('newTaskModal')">Cancelar</button>
+      <button class="btn btn-accent" onclick="createTask()">Crear Tarea</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const PASS = 'RedCol2026';
+const BASE = '';
+
+// Auth
+function doLogin(){
+  const v = document.getElementById('passInput').value;
+  if(v === PASS){
+    sessionStorage.setItem('admin','1');
+    showApp();
+  } else {
+    document.getElementById('loginErr').style.display='block';
+  }
+}
+document.getElementById('passInput').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+function logout(){sessionStorage.removeItem('admin');location.reload()}
+function showApp(){
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('app').style.display='block';
+  loadDashboard();
+}
+if(sessionStorage.getItem('admin')==='1') showApp();
+
+// Tabs
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('panel-'+t.dataset.tab).classList.add('active');
+    loadTab(t.dataset.tab);
+  });
+});
+
+function loadTab(name){
+  const loaders={dashboard:loadDashboard,allies:loadAllies,users:loadUsers,tasks:loadTasks,products:loadProducts,rewards:loadRewards,redemptions:loadRedemptions,completions:loadCompletions,stats:initStats};
+  if(loaders[name]) loaders[name]();
+}
+
+async function api(url,opts){const r=await fetch(BASE+url,opts);return r.json()}
+
+// Dashboard
+async function loadDashboard(){
+  const d=await api('/api/admin/dashboard');
+  document.getElementById('statsGrid').innerHTML=`
+    <div class="stat-card"><div class="num">${d.total_users}</div><div class="label">Usuarios</div></div>
+    <div class="stat-card"><div class="num">${d.total_points.toLocaleString()}</div><div class="label">Puntos en circulacion</div></div>
+    <div class="stat-card"><div class="num">${d.total_tasks}</div><div class="label">Tareas activas</div></div>
+    <div class="stat-card"><div class="num">${d.total_completions}</div><div class="label">Tareas completadas</div></div>
+    <div class="stat-card"><div class="num">${d.pending_completions}</div><div class="label">Pendientes revision</div></div>
+    <div class="stat-card"><div class="num">${d.total_rewards}</div><div class="label">Premios activos</div></div>
+    <div class="stat-card"><div class="num">${d.total_redemptions}</div><div class="label">Canjes realizados</div></div>
+    <div class="stat-card"><div class="num">${d.total_allies}</div><div class="label">Empresas aliadas</div></div>
+    <div class="stat-card"><div class="num">${d.pending_allies}</div><div class="label">Empresas pendientes</div></div>
+    <div class="stat-card"><div class="num">${d.total_products}</div><div class="label">Productos registrados</div></div>
+  `;
+}
+
+// Allies
+async function loadAllies(){
+  window._allAllies=null; // invalidar cache
+  const data=await api('/api/admin/allies');
+  const tb=document.getElementById('alliesTable');
+  if(!data.length){tb.innerHTML='<tr><td colspan="9" class="empty">No hay empresas registradas</td></tr>';return}
+  window._alliesData=data;
+  tb.innerHTML=data.map(a=>{
+    const st=a.status;
+    const prodCount=a.products?a.products.length:0;
+    const prodLink=location.origin+'/productos/'+a.id;
+    return `<tr>
+      <td>${a.id}</td>
+      <td><strong>${a.business_name}</strong><br><span style="color:var(--subtle);font-size:.78rem">${a.owner_name||''}</span></td>
+      <td>${a.city||'-'}</td>
+      <td style="font-size:.78rem">${a.phone||''}<br>${a.email||''}</td>
+      <td style="font-size:.78rem">${a.telegram_user?'@'+a.telegram_user:'-'}</td>
+      <td><span style="cursor:pointer;color:var(--blue)" onclick="showAllyDetail(${a.id})">${prodCount} producto(s)</span></td>
+      <td><span class="badge-status badge-${st}">${st}</span></td>
+      <td><span class="copy-link" onclick="copyText('${prodLink}')" title="Clic para copiar">Copiar link</span></td>
+      <td><div class="btn-group">
+        ${st!=='approved'?`<button class="btn btn-sm btn-green" onclick="setAllyStatus(${a.id},'approved')">Aprobar</button>`:''}
+        ${st!=='rejected'?`<button class="btn btn-sm btn-red" onclick="setAllyStatus(${a.id},'rejected')">Rechazar</button>`:''}
+        <button class="btn btn-sm btn-blue" onclick="editAlly(${a.id})">Editar</button>
+        <button class="btn btn-sm btn-red" onclick="deleteAlly(${a.id})">Eliminar</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+function showNewAlly(){document.getElementById('newAllyModal').classList.add('show')}
+async function createAlly(){
+  const name=document.getElementById('naName').value.trim();
+  if(!name){alert('El nombre es obligatorio');return}
+  const fd=new FormData();
+  fd.append('business_name',name);
+  fd.append('owner_name',document.getElementById('naOwner').value.trim());
+  fd.append('phone',document.getElementById('naPhone').value.trim());
+  fd.append('email',document.getElementById('naEmail').value.trim());
+  fd.append('city',document.getElementById('naCity').value.trim());
+  fd.append('location',document.getElementById('naLocation').value.trim());
+  fd.append('description',document.getElementById('naDesc').value.trim());
+  fd.append('instagram',document.getElementById('naInstagram').value.trim());
+  fd.append('facebook',document.getElementById('naFacebook').value.trim());
+  fd.append('website',document.getElementById('naWebsite').value.trim());
+  fd.append('telegram_user',document.getElementById('naTelegram').value.trim());
+  fd.append('tasks_per_week',document.getElementById('naTasksWeek').value||'7');
+  try{
+    const r=await fetch('/api/registro',{method:'POST',body:fd});
+    const res=await r.json();
+    if(res.ok){
+      closeModal('newAllyModal');
+      // Auto-aprobar
+      await fetch('/api/admin/allies/'+res.ally_id+'/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'approved'})});
+      loadAllies();loadDashboard();
+      alert('Empresa creada y aprobada');
+      ['naName','naOwner','naPhone','naEmail','naCity','naLocation','naDesc','naInstagram','naFacebook','naWebsite','naTelegram'].forEach(x=>document.getElementById(x).value='');
+    }else{alert('Error: '+(res.error||'desconocido'))}
+  }catch(e){alert('Error: '+e.message)}
+}
+
+async function setAllyStatus(id,st){await api(`/api/admin/allies/${id}/status`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:st})});loadAllies();loadDashboard()}
+async function deleteAlly(id){if(!confirm('Eliminar empresa y sus productos?'))return;await api(`/api/admin/allies/${id}`,{method:'DELETE'});loadAllies();loadDashboard()}
+
+async function showAllyDetail(id){
+  const data=await api(`/api/productos/${id}`);
+  document.getElementById('adTitle').textContent=data.ally.business_name;
+  const prods=data.products;
+  let html='';
+  if(!prods.length){html='<p class="empty">Sin productos</p>'}
+  else{html='<div class="products-list">'+prods.map(p=>`
+    <div class="prod-item">
+      <div>${p.photo?`<img src="${p.photo}" style="width:36px;height:36px;border-radius:4px;object-fit:cover;margin-right:8px;vertical-align:middle">`:''}<strong>${p.name}</strong> ${p.price?'— '+p.price:''}<br><span style="color:var(--subtle);font-size:.75rem">${p.description||''}</span></div>
+      <button class="btn btn-sm btn-red" onclick="deleteProduct(${p.id},${id})">X</button>
+    </div>
+  `).join('')+'</div>'}
+  document.getElementById('adBody').innerHTML=html;
+  document.getElementById('allyDetailModal').classList.add('show');
+}
+
+async function deleteProduct(pid,aid){await api(`/api/admin/products/${pid}`,{method:'DELETE'});showAllyDetail(aid);loadAllies()}
+
+function editAlly(id){
+  const a=(window._alliesData||[]).find(x=>x.id===id);
+  if(!a)return;
+  document.getElementById('eaId').value=a.id;
+  document.getElementById('eaName').value=a.business_name||'';
+  document.getElementById('eaOwner').value=a.owner_name||'';
+  document.getElementById('eaPhone').value=a.phone||'';
+  document.getElementById('eaEmail').value=a.email||'';
+  document.getElementById('eaCity').value=a.city||'';
+  document.getElementById('eaLocation').value=a.location||'';
+  document.getElementById('eaDesc').value=a.description||'';
+  document.getElementById('eaInstagram').value=a.instagram||'';
+  document.getElementById('eaFacebook').value=a.facebook||'';
+  document.getElementById('eaWebsite').value=a.website||'';
+  document.getElementById('eaTelegram').value=a.telegram_user||'';
+  document.getElementById('eaTasksWeek').value=a.tasks_per_week||7;
+  document.getElementById('editAllyModal').classList.add('show');
+}
+
+async function saveAlly(){
+  const id=document.getElementById('eaId').value;
+  const data={
+    business_name:document.getElementById('eaName').value.trim(),
+    owner_name:document.getElementById('eaOwner').value.trim(),
+    phone:document.getElementById('eaPhone').value.trim(),
+    email:document.getElementById('eaEmail').value.trim(),
+    city:document.getElementById('eaCity').value.trim(),
+    location:document.getElementById('eaLocation').value.trim(),
+    description:document.getElementById('eaDesc').value.trim(),
+    instagram:document.getElementById('eaInstagram').value.trim(),
+    facebook:document.getElementById('eaFacebook').value.trim(),
+    website:document.getElementById('eaWebsite').value.trim(),
+    telegram_user:document.getElementById('eaTelegram').value.trim().replace('@',''),
+    tasks_per_week:parseInt(document.getElementById('eaTasksWeek').value)||7,
+  };
+  try{
+    const r=await fetch('/api/admin/allies/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const res=await r.json();
+    if(res.ok){closeModal('editAllyModal');loadAllies();alert('Empresa actualizada')}
+    else{alert('Error: '+(res.error||'desconocido'))}
+  }catch(e){alert('Error de conexion: '+e.message)}
+}
+
+// Users
+async function loadUsers(){
+  const data=await api('/api/admin/users');
+  const tb=document.getElementById('usersTable');
+  if(!data.length){tb.innerHTML='<tr><td colspan="6" class="empty">No hay usuarios</td></tr>';return}
+  tb.innerHTML=data.map(u=>`<tr>
+    <td>${u.user_id}</td>
+    <td>${u.full_name||'-'}</td>
+    <td>${u.username?'@'+u.username:'-'}</td>
+    <td><strong>${u.points}</strong></td>
+    <td style="font-size:.78rem">${(u.joined_at||'').slice(0,10)}</td>
+    <td><div class="btn-group">
+      <button class="btn btn-sm btn-blue" onclick="editPoints(${u.user_id},'${(u.full_name||'').replace(/'/g,"\\'")}',${u.points})">Editar pts</button>
+      <button class="btn btn-sm btn-red" onclick="deleteUser(${u.user_id})">Eliminar</button>
+    </div></td>
+  </tr>`).join('');
+}
+
+function editPoints(uid,name,pts){
+  document.getElementById('epUid').value=uid;
+  document.getElementById('epUser').value=name;
+  document.getElementById('epPoints').value=pts;
+  document.getElementById('editPointsModal').classList.add('show');
+}
+async function savePoints(){
+  const uid=document.getElementById('epUid').value;
+  const pts=document.getElementById('epPoints').value;
+  await api(`/api/admin/users/${uid}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:parseInt(pts)})});
+  closeModal('editPointsModal');loadUsers();loadDashboard();
+}
+async function deleteUser(uid){if(!confirm('Eliminar usuario y todos sus datos?'))return;await api(`/api/admin/users/${uid}`,{method:'DELETE'});loadUsers();loadDashboard()}
+
+// Tasks
+async function loadTasks(){
+  const data=await api('/api/admin/tasks');
+  const tb=document.getElementById('tasksTable');
+  if(!data.length){tb.innerHTML='<tr><td colspan="9" class="empty">No hay tareas</td></tr>';return}
+  window._tasksData=data;
+  tb.innerHTML=data.map(t=>{
+    const total=t.completed_count+t.pending_count;
+    return `<tr>
+    <td>${t.id}</td>
+    <td><strong>${t.title}</strong><br><span style="color:var(--subtle);font-size:.75rem">${(t.description||'').slice(0,60)}</span></td>
+    <td style="font-size:.8rem">${t.ally_name||'-'}</td>
+    <td>${t.points_value}</td>
+    <td><strong style="color:var(--green)">${t.completed_count}</strong> <span style="color:var(--subtle);font-size:.75rem">aprobados</span>${t.pending_count?` · <span style="color:var(--orange)">${t.pending_count}</span> pendientes`:''}<br><span style="color:var(--subtle);font-size:.75rem">${total} total</span></td>
+    <td style="font-size:.75rem;max-width:150px;overflow:hidden;text-overflow:ellipsis">${t.target_url||'-'}</td>
+    <td><span class="badge-status ${t.is_active?'badge-active':'badge-used'}">${t.is_active?'Activa':'Inactiva'}</span></td>
+    <td style="font-size:.78rem">${(t.created_at||'').slice(0,10)}</td>
+    <td><div class="btn-group">${t.is_active?`<button class="btn btn-sm btn-blue" onclick="editTask(${t.id})">Editar</button><button class="btn btn-sm btn-red" onclick="deactivateTask(${t.id})">Desactivar</button>`:''}</div></td>
+  </tr>`}).join('');
+}
+async function populateAllySelect(selectId, selectedId){
+  if(!window._allAllies){
+    window._allAllies=await api('/api/admin/allies');
+  }
+  const sel=document.getElementById(selectId);
+  sel.innerHTML='<option value="">-- Seleccionar empresa --</option>';
+  (window._allAllies||[]).forEach(a=>{
+    const opt=document.createElement('option');
+    opt.value=a.id;
+    opt.textContent=a.business_name+(a.city?' — '+a.city:'');
+    if(a.id==selectedId) opt.selected=true;
+    sel.appendChild(opt);
+  });
+}
+
+async function showNewTask(){
+  await populateAllySelect('ntAllyId');
+  document.getElementById('ntTitle').value='';
+  document.getElementById('ntDesc').value='';
+  document.getElementById('ntInstructions').value='';
+  document.getElementById('ntUrl').value='';
+  document.getElementById('ntPoints').value='10';
+  document.getElementById('newTaskModal').classList.add('show');
+}
+
+async function createTask(){
+  const ally=document.getElementById('ntAllyId').value;
+  const title=document.getElementById('ntTitle').value.trim();
+  if(!title){alert('El titulo es obligatorio');return}
+  if(!ally){alert('Selecciona una empresa');return}
+  const data={
+    title:title,
+    description:document.getElementById('ntDesc').value.trim(),
+    instructions:document.getElementById('ntInstructions').value.trim(),
+    target_url:document.getElementById('ntUrl').value.trim()||null,
+    points_value:parseInt(document.getElementById('ntPoints').value)||10,
+    ally_id:parseInt(ally),
+  };
+  try{
+    const r=await fetch('/api/admin/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const res=await r.json();
+    if(res.ok){closeModal('newTaskModal');loadTasks();loadDashboard();alert('Tarea creada (ID: '+res.id+')')}
+    else{alert('Error: '+(res.error||'desconocido'))}
+  }catch(e){alert('Error: '+e.message)}
+}
+
+async function editTask(id){
+  const t=(window._tasksData||[]).find(x=>x.id===id);
+  if(!t)return;
+  await populateAllySelect('etAllyId',t.ally_id);
+  document.getElementById('etId').value=t.id;
+  document.getElementById('etTitle').value=t.title||'';
+  document.getElementById('etDesc').value=t.description||'';
+  document.getElementById('etInstructions').value=t.instructions||'';
+  document.getElementById('etUrl').value=t.target_url||'';
+  document.getElementById('etPoints').value=t.points_value||10;
+  document.getElementById('editTaskModal').classList.add('show');
+}
+
+async function saveTask(){
+  const id=document.getElementById('etId').value;
+  const data={
+    title:document.getElementById('etTitle').value.trim(),
+    description:document.getElementById('etDesc').value.trim(),
+    instructions:document.getElementById('etInstructions').value.trim(),
+    target_url:document.getElementById('etUrl').value.trim()||null,
+    points_value:parseInt(document.getElementById('etPoints').value)||10,
+    ally_id:parseInt(document.getElementById('etAllyId').value)||null,
+  };
+  try{
+    const r=await fetch('/api/admin/tasks/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const res=await r.json();
+    if(res.ok){closeModal('editTaskModal');loadTasks();alert('Tarea actualizada')}
+    else{alert('Error: '+(res.error||'desconocido'))}
+  }catch(e){alert('Error: '+e.message)}
+}
+
+async function deactivateTask(tid){await api(`/api/admin/tasks/${tid}`,{method:'DELETE'});loadTasks();loadDashboard()}
+
+// Products
+async function loadProducts(){
+  const data=await api('/api/admin/products');
+  const tb=document.getElementById('productsTable');
+  const filter=document.getElementById('productFilter');
+  // Populate filter
+  if(!window._prodFilterReady){
+    const allies=await api('/api/admin/allies');
+    filter.innerHTML='<option value="all">Todas las empresas</option>';
+    allies.forEach(a=>{const o=document.createElement('option');o.value=a.id;o.textContent=a.business_name;filter.appendChild(o)});
+    window._prodFilterReady=true;
+  }
+  const fv=filter.value;
+  const filtered=fv==='all'?data:data.filter(p=>p.ally_id==fv);
+  if(!filtered.length){tb.innerHTML='<tr><td colspan="8" class="empty">No hay productos</td></tr>';return}
+  window._productsData=filtered;
+  tb.innerHTML=filtered.map(p=>`<tr>
+    <td>${p.id}</td>
+    <td style="font-size:.8rem">${p.business_name||'-'}</td>
+    <td><strong>${p.name}</strong></td>
+    <td style="font-size:.8rem;max-width:200px">${p.description||'-'}</td>
+    <td>${p.price||'-'}</td>
+    <td>${p.points_required?`<strong style="color:var(--accent)">${p.points_required} pts</strong>`:'<span style="color:var(--subtle)">No canjeable</span>'}</td>
+    <td>${p.photo_path?`<img src="/uploads/${p.photo_path}" style="width:40px;height:40px;border-radius:4px;object-fit:cover">`:'-'}</td>
+    <td><div class="btn-group">
+      <button class="btn btn-sm btn-blue" onclick="editProduct(${p.id})">Editar</button>
+      <button class="btn btn-sm btn-red" onclick="deleteProductAdmin(${p.id})">Eliminar</button>
+    </div></td>
+  </tr>`).join('');
+}
+
+async function showNewProduct(){
+  await populateAllySelect('npAllyId');
+  document.getElementById('npName').value='';
+  document.getElementById('npDesc').value='';
+  document.getElementById('npPrice').value='';
+  document.getElementById('newProductModal').classList.add('show');
+}
+
+async function createProduct(){
+  const ally=document.getElementById('npAllyId').value;
+  const name=document.getElementById('npName').value.trim();
+  if(!name){alert('El nombre es obligatorio');return}
+  if(!ally){alert('Selecciona una empresa');return}
+  try{
+    const r=await fetch('/api/admin/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      ally_id:parseInt(ally),name:name,
+      description:document.getElementById('npDesc').value.trim(),
+      price:document.getElementById('npPrice').value.trim(),
+      points_required:parseInt(document.getElementById('npPoints').value)||0
+    })});
+    const res=await r.json();
+    if(res.ok){closeModal('newProductModal');loadProducts();loadDashboard();alert('Producto creado')}
+    else{alert('Error: '+(res.error||'desconocido'))}
+  }catch(e){alert('Error: '+e.message)}
+}
+
+async function editProduct(id){
+  const p=(window._productsData||[]).find(x=>x.id===id);
+  if(!p)return;
+  await populateAllySelect('eprodAllyId',p.ally_id);
+  document.getElementById('eprodId').value=p.id;
+  document.getElementById('eprodName').value=p.name||'';
+  document.getElementById('eprodDesc').value=p.description||'';
+  document.getElementById('eprodPrice').value=p.price||'';
+  document.getElementById('eprodPoints').value=p.points_required||0;
+  document.getElementById('editProductModal').classList.add('show');
+}
+
+async function saveProduct(){
+  const id=document.getElementById('eprodId').value;
+  const data={
+    name:document.getElementById('eprodName').value.trim(),
+    description:document.getElementById('eprodDesc').value.trim(),
+    price:document.getElementById('eprodPrice').value.trim(),
+    points_required:parseInt(document.getElementById('eprodPoints').value)||0,
+    ally_id:parseInt(document.getElementById('eprodAllyId').value)||null,
+  };
+  try{
+    const r=await fetch('/api/admin/products/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const res=await r.json();
+    if(res.ok){closeModal('editProductModal');loadProducts();alert('Producto actualizado')}
+    else{alert('Error: '+(res.error||'desconocido'))}
+  }catch(e){alert('Error: '+e.message)}
+}
+
+async function deleteProductAdmin(id){if(!confirm('Eliminar este producto?'))return;await api(`/api/admin/products/${id}`,{method:'DELETE'});loadProducts();loadDashboard()}
+
+// Rewards
+async function loadRewards(){
+  const data=await api('/api/admin/rewards');
+  const tb=document.getElementById('rewardsTable');
+  if(!data.length){tb.innerHTML='<tr><td colspan="6" class="empty">No hay premios</td></tr>';return}
+  tb.innerHTML=data.map(r=>`<tr>
+    <td>${r.id}</td>
+    <td>${r.name}</td>
+    <td>${r.points_required}</td>
+    <td>${r.provider||'-'}</td>
+    <td><span class="badge-status ${r.is_active?'badge-active':'badge-used'}">${r.is_active?'Activo':'Inactivo'}</span></td>
+    <td>${r.is_active?`<button class="btn btn-sm btn-red" onclick="deactivateReward(${r.id})">Desactivar</button>`:''}</td>
+  </tr>`).join('');
+}
+async function deactivateReward(rid){await api(`/api/admin/rewards/${rid}`,{method:'DELETE'});loadRewards();loadDashboard()}
+async function showNewReward(){
+  await populateAllySelect('nrProvider');
+  document.getElementById('nrName').value='';
+  document.getElementById('nrDesc').value='';
+  document.getElementById('nrPoints').value='';
+  document.getElementById('newRewardModal').classList.add('show');
+}
+async function createReward(){
+  const name=document.getElementById('nrName').value.trim();
+  const desc=document.getElementById('nrDesc').value.trim();
+  const pts=parseInt(document.getElementById('nrPoints').value);
+  const sel=document.getElementById('nrProvider');
+  const prov=sel.options[sel.selectedIndex]?sel.options[sel.selectedIndex].textContent.split(' — ')[0]:'';
+  if(!name||!pts){alert('Nombre y puntos son obligatorios');return}
+  if(!sel.value){alert('Selecciona una empresa');return}
+  await api('/api/admin/rewards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,description:desc,points_required:pts,provider:prov})});
+  closeModal('newRewardModal');
+  loadRewards();loadDashboard();
+}
+
+// Redemptions
+async function loadRedemptions(){
+  const data=await api('/api/admin/redemptions');
+  const tb=document.getElementById('redemptionsTable');
+  if(!data.length){tb.innerHTML='<tr><td colspan="8" class="empty">No hay canjes</td></tr>';return}
+  tb.innerHTML=data.map(r=>`<tr>
+    <td>${r.id}</td>
+    <td>${r.full_name||r.username||'-'}</td>
+    <td>${r.reward_name}</td>
+    <td>${r.provider||'-'}</td>
+    <td>${r.points_used}</td>
+    <td style="font-family:monospace;font-size:.8rem">${r.voucher_code}</td>
+    <td><span class="badge-status badge-${r.status}">${r.status}</span></td>
+    <td style="font-size:.78rem">${(r.redeemed_at||'').slice(0,16)}</td>
+  </tr>`).join('');
+}
+
+// Completions
+async function loadCompletions(){
+  const data=await api('/api/admin/completions');
+  const tb=document.getElementById('completionsTable');
+  if(!data.length){tb.innerHTML='<tr><td colspan="7" class="empty">No hay validaciones</td></tr>';return}
+  tb.innerHTML=data.map(c=>`<tr>
+    <td>${c.id}</td>
+    <td>${c.full_name||c.username||'-'}</td>
+    <td>${c.title}</td>
+    <td>${c.points_awarded||c.points_value}</td>
+    <td><span class="badge-status badge-${c.status}">${c.status}</span></td>
+    <td style="font-size:.75rem;max-width:200px;overflow:hidden;text-overflow:ellipsis">${c.ai_response||'-'}</td>
+    <td style="font-size:.78rem">${(c.submitted_at||'').slice(0,16)}</td>
+  </tr>`).join('');
+}
+
+// Utils
+function closeModal(id){document.getElementById(id).classList.remove('show')}
+document.querySelectorAll('.modal-overlay').forEach(m=>{m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show')})});
+
+// Stats
+async function initStats(){
+  const monthInput=document.getElementById('statsMonth');
+  if(!monthInput.value){
+    const d=new Date();
+    monthInput.value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  }
+  const sel=document.getElementById('statsAllyFilter');
+  if(sel.options.length<=1){
+    const allies=window._allAllies||await api('/api/admin/allies');
+    window._allAllies=allies;
+    allies.forEach(a=>{const o=document.createElement('option');o.value=a.id;o.textContent=a.business_name;sel.appendChild(o)});
+  }
+  loadStats();
+}
+
+async function loadStats(){
+  const month=document.getElementById('statsMonth').value;
+  const ally=document.getElementById('statsAllyFilter').value;
+  const qs=new URLSearchParams();
+  if(month) qs.set('month',month);
+  if(ally && ally!=='all') qs.set('ally_id',ally);
+
+  // Objetivos: solo cuando hay empresa seleccionada
+  const goalsSec=document.getElementById('goalsSection');
+  if(ally && ally!=='all'){
+    goalsSec.style.display='block';
+    await loadGoals(parseInt(ally));
+  }else{
+    goalsSec.style.display='none';
+  }
+
+  // Resumen por empresa
+  const allyData=await api('/api/admin/stats/by-ally?'+qs.toString());
+  const filteredAlly = ally==='all'?allyData:allyData.filter(x=>x.id==ally);
+  const tb=document.getElementById('statsAllyTable');
+  if(!filteredAlly.length){tb.innerHTML='<tr><td colspan="6" class="empty">Sin datos</td></tr>'}
+  else{tb.innerHTML=filteredAlly.map(a=>`<tr>
+    <td><strong>${a.business_name}</strong></td>
+    <td>${a.active_tasks}</td>
+    <td>${a.unique_participants}</td>
+    <td><strong style="color:var(--green)">${a.completions}</strong></td>
+    <td><strong style="color:var(--accent)">${a.points_issued}</strong></td>
+    <td>${a.redemptions}</td>
+  </tr>`).join('')}
+
+  // Detalle por tarea
+  const taskData=await api('/api/admin/stats/by-task?'+qs.toString());
+  const tb2=document.getElementById('statsTaskTable');
+  if(!taskData.length){tb2.innerHTML='<tr><td colspan="8" class="empty">Sin tareas</td></tr>'}
+  else{tb2.innerHTML=taskData.map(t=>`<tr>
+    <td style="font-size:.8rem">${t.business_name}</td>
+    <td><strong>${t.title}</strong></td>
+    <td>${t.points_value}</td>
+    <td><span style="color:var(--green)">${t.approved}</span></td>
+    <td><span style="color:var(--orange)">${t.pending}</span></td>
+    <td><span style="color:var(--red)">${t.rejected}</span></td>
+    <td>${t.unique_users}</td>
+    <td><strong style="color:var(--accent)">${t.points_issued}</strong></td>
+  </tr>`).join('')}
+}
+
+const GOAL_LABELS={
+  follow_facebook:{icon:'📘',name:'Seguir en Facebook'},
+  follow_instagram:{icon:'📷',name:'Seguir en Instagram'},
+  like_facebook:{icon:'👍',name:'Like en Facebook'},
+  like_instagram:{icon:'❤️',name:'Like en Instagram'},
+  comment:{icon:'💬',name:'Comentarios'},
+  repost:{icon:'🔁',name:'Reposts / Compartir'},
+  review_google:{icon:'⭐',name:'Reseña en Google'},
+  follow_tiktok:{icon:'🎵',name:'Seguir en TikTok'},
+  custom:{icon:'✏️',name:'Personalizado'}
+};
+
+async function loadGoals(allyId){
+  const ally=(window._allAllies||[]).find(a=>a.id==allyId);
+  document.getElementById('goalsAllyName').textContent=ally?ally.business_name:'';
+  const goals=await api('/api/admin/goals/'+allyId);
+  window._goalsData=goals;
+  const cont=document.getElementById('goalsContainer');
+  if(!goals.length){
+    cont.innerHTML='<div class="empty" style="grid-column:1/-1">Sin objetivos definidos. Crea el primero con "+ Nuevo Objetivo"</div>';
+    return;
+  }
+  cont.innerHTML=goals.map(g=>{
+    const lbl=GOAL_LABELS[g.goal_type]||{icon:'🎯',name:g.goal_type};
+    const pct=g.target>0?Math.min(100,Math.round((g.current/g.target)*100)):0;
+    const color=pct>=100?'var(--green)':pct>=50?'var(--accent)':'var(--blue)';
+    return `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
+        <div>
+          <div style="font-size:1rem;font-weight:600">${lbl.icon} ${lbl.name}</div>
+          <div style="color:var(--subtle);font-size:.72rem;text-transform:uppercase;margin-top:2px">${g.period}</div>
+        </div>
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-sm btn-blue" onclick="editGoal(${g.id})">✎</button>
+          <button class="btn btn-sm btn-red" onclick="deleteGoal(${g.id})">✕</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:6px;margin:10px 0 6px">
+        <span style="font-size:1.5rem;font-weight:700;color:${color}">${g.current}</span>
+        <span style="color:var(--subtle);font-size:.85rem">/ ${g.target}</span>
+        <span style="margin-left:auto;color:${color};font-weight:600;font-size:.9rem">${pct}%</span>
+      </div>
+      <div style="height:6px;background:var(--input-bg);border-radius:3px;overflow:hidden">
+        <div style="height:100%;background:${color};width:${pct}%;transition:width .3s"></div>
+      </div>
+      ${g.notes?`<div style="color:var(--subtle);font-size:.78rem;margin-top:8px">${g.notes}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function showNewGoal(){
+  const ally=document.getElementById('statsAllyFilter').value;
+  if(!ally||ally==='all'){alert('Selecciona una empresa primero');return}
+  document.getElementById('goalModalTitle').textContent='Nuevo Objetivo';
+  document.getElementById('goalId').value='';
+  document.getElementById('goalAllyId').value=ally;
+  document.getElementById('goalType').value='follow_facebook';
+  document.getElementById('goalTarget').value='100';
+  document.getElementById('goalCurrent').value='0';
+  document.getElementById('goalPeriod').value='monthly';
+  document.getElementById('goalNotes').value='';
+  document.getElementById('goalModal').classList.add('show');
+}
+
+function editGoal(id){
+  const g=(window._goalsData||[]).find(x=>x.id===id);
+  if(!g)return;
+  document.getElementById('goalModalTitle').textContent='Editar Objetivo';
+  document.getElementById('goalId').value=g.id;
+  document.getElementById('goalAllyId').value=g.ally_id;
+  document.getElementById('goalType').value=g.goal_type;
+  document.getElementById('goalTarget').value=g.target;
+  document.getElementById('goalCurrent').value=g.current;
+  document.getElementById('goalPeriod').value=g.period;
+  document.getElementById('goalNotes').value=g.notes||'';
+  document.getElementById('goalModal').classList.add('show');
+}
+
+async function saveGoal(){
+  const id=document.getElementById('goalId').value;
+  const data={
+    ally_id:parseInt(document.getElementById('goalAllyId').value),
+    goal_type:document.getElementById('goalType').value,
+    target:parseInt(document.getElementById('goalTarget').value)||0,
+    current:parseInt(document.getElementById('goalCurrent').value)||0,
+    period:document.getElementById('goalPeriod').value,
+    notes:document.getElementById('goalNotes').value.trim()
+  };
+  try{
+    const url=id?'/api/admin/goals/'+id:'/api/admin/goals';
+    const method=id?'PUT':'POST';
+    const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const res=await r.json();
+    if(res.ok){closeModal('goalModal');loadGoals(data.ally_id)}
+    else{alert('Error: '+(res.error||'desconocido'))}
+  }catch(e){alert('Error: '+e.message)}
+}
+
+async function deleteGoal(id){
+  if(!confirm('Eliminar este objetivo?'))return;
+  const ally=document.getElementById('statsAllyFilter').value;
+  await api('/api/admin/goals/'+id,{method:'DELETE'});
+  if(ally && ally!=='all') loadGoals(parseInt(ally));
+}
+
+function exportMonthly(){
+  const month=document.getElementById('statsMonth').value;
+  const ally=document.getElementById('statsAllyFilter').value;
+  const qs=new URLSearchParams();
+  if(month) qs.set('month',month);
+  if(ally) qs.set('ally_id',ally);
+  window.open('/api/admin/export/monthly?'+qs.toString(),'_blank');
+}
+
+function copyText(text){
+  navigator.clipboard.writeText(text).then(()=>alert('Link copiado!')).catch(()=>{
+    const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();alert('Link copiado!');
+  });
+}
+</script>
+</body>
+</html>

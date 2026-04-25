@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agregar Productos — Red Colaboracion</title>
+<style>
+:root{--bg:#0f1b2d;--card:#162236;--accent:#ffc107;--accent2:#e6ac00;--text:#e8ecf1;--subtle:#8a9bb5;--input-bg:#1c3050;--input-border:#2a4a6b;--success:#2ea043;--error:#e53935;--radius:12px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.header{background:linear-gradient(135deg,#1a2d47,#0f1b2d);border-bottom:3px solid var(--accent);padding:30px 20px;text-align:center}
+.header .badge{display:inline-block;background:var(--accent);color:var(--bg);font-weight:800;font-size:1rem;padding:6px 18px;border-radius:20px;margin-bottom:12px}
+.header h1{color:var(--accent);font-size:1.6rem;margin-bottom:6px}
+.header p{color:var(--subtle);font-size:.9rem}
+.header .biz-name{color:var(--text);font-size:1.2rem;font-weight:700;margin-top:8px}
+.container{max-width:680px;margin:0 auto;padding:30px 20px 60px}
+.section{background:var(--card);border-radius:var(--radius);padding:24px;margin-bottom:20px;border:1px solid var(--input-border)}
+.section h2{color:var(--accent);font-size:1.1rem;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--input-border)}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:.85rem;color:var(--subtle);margin-bottom:5px;font-weight:600}
+.field label .req{color:var(--accent)}
+.field input,.field textarea{width:100%;padding:10px 14px;background:var(--input-bg);border:1px solid var(--input-border);border-radius:8px;color:var(--text);font-size:.95rem}
+.field input:focus,.field textarea:focus{outline:none;border-color:var(--accent)}
+.field textarea{resize:vertical;min-height:60px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:500px){.field-row{grid-template-columns:1fr}}
+.file-upload input[type="file"]{display:none}
+.file-upload .upload-btn{background:var(--input-bg);border:1px dashed var(--input-border);border-radius:8px;padding:12px;cursor:pointer;color:var(--subtle);font-size:.85rem;text-align:center;display:block}
+.file-upload .upload-btn:hover{border-color:var(--accent);color:var(--accent)}
+.file-upload .preview{width:60px;height:60px;border-radius:8px;object-fit:cover;margin-top:8px;display:none}
+.product-card{background:var(--input-bg);border-radius:10px;padding:16px;margin-bottom:12px;border:1px solid var(--input-border);position:relative}
+.product-card .remove{position:absolute;top:8px;right:10px;background:none;border:none;color:var(--error);cursor:pointer;font-size:1.2rem}
+.product-card h3{color:var(--text);font-size:.9rem;margin-bottom:12px}
+.add-btn{display:block;width:100%;padding:12px;background:transparent;border:2px dashed var(--input-border);border-radius:10px;color:var(--accent);font-size:.9rem;font-weight:600;cursor:pointer}
+.add-btn:hover{border-color:var(--accent);background:rgba(255,193,7,.05)}
+.submit-btn{display:block;width:100%;padding:16px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:var(--radius);color:var(--bg);font-size:1.1rem;font-weight:700;cursor:pointer;margin-top:10px}
+.submit-btn:hover{box-shadow:0 4px 20px rgba(255,193,7,.3)}
+.submit-btn:disabled{opacity:.6;cursor:not-allowed}
+.alert{padding:14px 18px;border-radius:8px;font-size:.9rem;margin-bottom:16px;display:none}
+.alert.success{background:rgba(46,160,67,.15);border:1px solid var(--success);color:#4ade80;display:block}
+.alert.error{background:rgba(229,57,53,.15);border:1px solid var(--error);color:#f87171;display:block}
+.existing-products .item{background:var(--input-bg);padding:10px 14px;border-radius:8px;margin-bottom:6px;display:flex;align-items:center;gap:10px}
+.existing-products .item img{width:40px;height:40px;border-radius:6px;object-fit:cover}
+.existing-products .item .info{flex:1}
+.existing-products .item .info strong{font-size:.9rem}
+.existing-products .item .info small{color:var(--subtle);font-size:.78rem}
+.loading{text-align:center;padding:60px;color:var(--subtle)}
+.not-found{text-align:center;padding:60px 20px}
+.not-found h2{color:var(--error);margin-bottom:10px}
+.footer{text-align:center;padding:20px;color:var(--subtle);font-size:.8rem}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="badge">RED COLABORACION</div>
+  <h1>Agregar Productos</h1>
+  <p>Registra los productos o servicios de tu empresa</p>
+  <div class="biz-name" id="bizName">Cargando...</div>
+</div>
+
+<div class="container">
+  <div id="loadingMsg" class="loading">Cargando datos de la empresa...</div>
+  <div id="notFound" class="not-found" style="display:none">
+    <h2>Empresa no encontrada</h2>
+    <p>El enlace no es valido o la empresa no existe en el sistema.</p>
+  </div>
+
+  <div id="mainContent" style="display:none">
+    <div id="alertBox" class="alert"></div>
+
+    <!-- Productos existentes -->
+    <div class="section" id="existingSection" style="display:none">
+      <h2>Productos actuales</h2>
+      <div id="existingProducts" class="existing-products"></div>
+    </div>
+
+    <!-- Nuevos productos -->
+    <form id="productsForm" enctype="multipart/form-data">
+      <div class="section">
+        <h2>Nuevos Productos</h2>
+        <div id="productsContainer"></div>
+        <button type="button" class="add-btn" id="addBtn">+ Agregar producto</button>
+      </div>
+      <button type="submit" class="submit-btn" id="submitBtn">Enviar Productos</button>
+    </form>
+
+    <div id="successScreen" style="display:none;text-align:center;padding:40px">
+      <div style="font-size:3rem;margin-bottom:12px">&#10003;</div>
+      <h2 style="color:var(--accent);margin-bottom:8px">Productos Agregados</h2>
+      <p style="color:var(--subtle)">Tus productos han sido registrados exitosamente.</p>
+    </div>
+  </div>
+</div>
+
+<div class="footer">Red Colaboracion — Turismo Colaborativo &copy; 2026</div>
+
+<script>
+const allyId = location.pathname.split('/').pop();
+let productCount = 0;
+
+async function init() {
+  try {
+    const resp = await fetch(`/api/productos/${allyId}`);
+    const data = await resp.json();
+    if (!data.ok) { showNotFound(); return; }
+
+    document.getElementById('bizName').textContent = data.ally.business_name;
+    document.getElementById('loadingMsg').style.display = 'none';
+    document.getElementById('mainContent').style.display = 'block';
+
+    if (data.products.length) {
+      document.getElementById('existingSection').style.display = 'block';
+      document.getElementById('existingProducts').innerHTML = data.products.map(p => `
+        <div class="item">
+          ${p.photo ? `<img src="${p.photo}">` : ''}
+          <div class="info">
+            <strong>${p.name}</strong> ${p.price ? '— ' + p.price : ''}
+            <br><small>${p.description || ''}</small>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    addProduct();
+  } catch (e) {
+    showNotFound();
+  }
+}
+
+function showNotFound() {
+  document.getElementById('loadingMsg').style.display = 'none';
+  document.getElementById('notFound').style.display = 'block';
+  document.getElementById('bizName').textContent = '';
+}
+
+function addProduct() {
+  if (productCount >= 10) return;
+  const idx = productCount;
+  const card = document.createElement('div');
+  card.className = 'product-card';
+  card.innerHTML = `
+    <button type="button" class="remove" onclick="this.parentElement.remove()">&times;</button>
+    <h3>Producto ${idx + 1}</h3>
+    <div class="field">
+      <label>Nombre <span class="req">*</span></label>
+      <input type="text" name="product_name_${idx}" required placeholder="Ej: Tour de cafe">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Descripcion</label>
+        <input type="text" name="product_desc_${idx}" placeholder="Breve descripcion">
+      </div>
+      <div class="field">
+        <label>Precio</label>
+        <input type="text" name="product_price_${idx}" placeholder="$XX.XXX COP">
+      </div>
+    </div>
+    <div class="field">
+      <label>Foto</label>
+      <div class="file-upload">
+        <label class="upload-btn" id="lbl_${idx}">Subir foto</label>
+        <input type="file" name="product_photo_${idx}" id="file_${idx}" accept="image/*">
+        <img class="preview" id="prev_${idx}">
+      </div>
+    </div>
+  `;
+  document.getElementById('productsContainer').appendChild(card);
+
+  const fi = card.querySelector(`#file_${idx}`);
+  const lb = card.querySelector(`#lbl_${idx}`);
+  const pv = card.querySelector(`#prev_${idx}`);
+  lb.addEventListener('click', () => fi.click());
+  fi.addEventListener('change', () => {
+    if (fi.files[0]) { pv.src = URL.createObjectURL(fi.files[0]); pv.style.display = 'block'; lb.textContent = fi.files[0].name; }
+  });
+  productCount++;
+  if (productCount >= 10) document.getElementById('addBtn').style.display = 'none';
+}
+
+document.getElementById('addBtn').addEventListener('click', addProduct);
+
+document.getElementById('productsForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('submitBtn');
+  const alertBox = document.getElementById('alertBox');
+  alertBox.className = 'alert'; alertBox.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Enviando...';
+
+  try {
+    const fd = new FormData(e.target);
+    const resp = await fetch(`/api/productos/${allyId}`, { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (data.ok) {
+      document.getElementById('productsForm').style.display = 'none';
+      document.getElementById('successScreen').style.display = 'block';
+    } else {
+      alertBox.textContent = data.error; alertBox.className = 'alert error';
+      btn.disabled = false; btn.textContent = 'Enviar Productos';
+    }
+  } catch (err) {
+    alertBox.textContent = 'Error de conexion'; alertBox.className = 'alert error';
+    btn.disabled = false; btn.textContent = 'Enviar Productos';
+  }
+});
+
+init();
+</script>
+</body>
+</html>

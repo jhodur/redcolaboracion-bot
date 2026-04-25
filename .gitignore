@@ -1,0 +1,45 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+
+# Local dev DB and data
+gamification.db
+gamification.db-journal
+redcolaboracion.db
+*.db
+*.db-journal
+
+# Generated content
+uploads/
+vouchers/
+screenshots/
+
+# Logs
+*.log
+api.log
+bot.log
+lt.log
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Build / cache
+build/
+dist/
+*.egg-info/
+.cache/
+
+# Node (vienen de npx localtunnel etc)
+node_modules/
+package-lock.json
+package.json
