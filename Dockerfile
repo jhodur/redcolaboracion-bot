@@ -24,4 +24,4 @@ ENV DB_PATH=/app/data/gamification.db
 
 EXPOSE 5055
 
-CMD ["python", "bot.py"]
+CMD ["python", "start.py"]
