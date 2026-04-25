@@ -269,52 +269,44 @@ async def canjear_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _process_redeem(update, context, args[0])
         return
 
-    # /canjear <nombre_empresa> → mostrar premios de esa empresa con botones
+    # /canjear <provider_id> → mostrar premios de esa empresa
+    if args and args[0].startswith("ally_"):
+        try:
+            ally_id = int(args[0].replace("ally_", ""))
+        except ValueError:
+            await update.message.reply_text("❌ Empresa no válida.")
+            return
+        provider_rewards = [r for r in rewards if r.get("ally_id") == ally_id]
+        if not provider_rewards:
+            await update.message.reply_text("❌ No hay premios disponibles en esta empresa para tus puntos.")
+            return
+        await _show_provider_products(update, user, provider_rewards)
+        return
+
+    # /canjear <nombre_empresa> (legacy texto)
     if args and not args[0].isdigit():
         provider_name = " ".join(args)
         provider_rewards = [r for r in rewards if r["provider"].lower() == provider_name.lower()]
         if not provider_rewards:
             await update.message.reply_text("❌ No hay premios disponibles en esta empresa para tus puntos.")
             return
-
-        if not BOT_USERNAME:
-            bot_info = await context.bot.get_me()
-            BOT_USERNAME = bot_info.username
-
-        keyboard = []
-        for r in provider_rewards:
-            keyboard.append([InlineKeyboardButton(
-                f"🎁 {r['name']} — {r['points_required']} pts",
-                url=f"https://t.me/{BOT_USERNAME}?start=redeem_{r['id']}"
-            )])
-
-        await update.message.reply_text(
-            f"🏢 *{provider_rewards[0]['provider']}*\n\n"
-            f"💰 Tus puntos: *{user['points']}*\n\n"
-            "Selecciona el premio que deseas:",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown"
-        )
+        await _show_provider_products(update, user, provider_rewards)
         return
 
-    # Por defecto: mostrar lista de empresas con botones
-    if not BOT_USERNAME:
-        bot_info = await context.bot.get_me()
-        BOT_USERNAME = bot_info.username
-
+    # Por defecto: mostrar lista de empresas con botones (callback_data)
     providers = {}
     for r in rewards:
         prov = r["provider"]
+        ally_id = r.get("ally_id")
         if prov not in providers:
-            providers[prov] = 0
-        providers[prov] += 1
+            providers[prov] = {"count": 0, "ally_id": ally_id}
+        providers[prov]["count"] += 1
 
     keyboard = []
-    for prov, count in providers.items():
-        safe_name = prov.replace(" ", "_")
+    for prov, info in providers.items():
         keyboard.append([InlineKeyboardButton(
-            f"🏢 {prov} ({count} premios)",
-            url=f"https://t.me/{BOT_USERNAME}?start=shop_{safe_name}"
+            f"🏢 {prov} ({info['count']} premios)",
+            callback_data=f"cnj_a_{info['ally_id']}"
         )])
 
     await update.message.reply_text(
@@ -324,6 +316,173 @@ async def canjear_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
     )
+
+
+async def _show_provider_products(update_or_query, user, provider_rewards):
+    """Muestra los productos de una empresa con botones callback_data."""
+    keyboard = []
+    for r in provider_rewards:
+        keyboard.append([InlineKeyboardButton(
+            f"🎁 {r['name']} — {r['points_required']} pts",
+            callback_data=f"cnj_p_{r['id']}"
+        )])
+    keyboard.append([InlineKeyboardButton(
+        "⬅️ Volver a empresas",
+        callback_data="cnj_back"
+    )])
+
+    text = (
+        f"🏢 *{provider_rewards[0]['provider']}*\n\n"
+        f"💰 Tus puntos: *{user['points']}*\n\n"
+        "Selecciona el premio que deseas:"
+    )
+    markup = InlineKeyboardMarkup(keyboard)
+
+    if hasattr(update_or_query, "callback_query") and update_or_query.callback_query:
+        await update_or_query.callback_query.edit_message_text(
+            text, reply_markup=markup, parse_mode="Markdown"
+        )
+    elif hasattr(update_or_query, "message") and update_or_query.message:
+        await update_or_query.message.reply_text(
+            text, reply_markup=markup, parse_mode="Markdown"
+        )
+    else:
+        # Es un Update con callback_query
+        await update_or_query.callback_query.edit_message_text(
+            text, reply_markup=markup, parse_mode="Markdown"
+        )
+
+
+async def canjear_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Maneja los callback_query del flujo de canje."""
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+    logger.info(f"[CANJEAR_CB] data={data} user={query.from_user.id}")
+
+    user_id = query.from_user.id
+    db.upsert_user(user_id, query.from_user.username or "",
+                   query.from_user.full_name or query.from_user.first_name or "")
+    user = db.get_user(user_id)
+
+    if data == "cnj_back":
+        # Mostrar lista de empresas otra vez
+        rewards = [r for r in db.list_redeemable_products() if user["points"] >= r["points_required"]]
+        providers = {}
+        for r in rewards:
+            prov = r["provider"]
+            ally_id = r.get("ally_id")
+            if prov not in providers:
+                providers[prov] = {"count": 0, "ally_id": ally_id}
+            providers[prov]["count"] += 1
+        keyboard = [[InlineKeyboardButton(
+            f"🏢 {prov} ({info['count']} premios)",
+            callback_data=f"cnj_a_{info['ally_id']}"
+        )] for prov, info in providers.items()]
+        await query.edit_message_text(
+            f"🎁 *Canjear Puntos*\n\n💰 Tus puntos: *{user['points']}*\n\n"
+            "Selecciona la empresa donde quieres redimir:",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+        return
+
+    if data.startswith("cnj_a_"):
+        try:
+            ally_id = int(data.replace("cnj_a_", ""))
+        except ValueError:
+            await query.edit_message_text("❌ Empresa no válida.")
+            return
+        rewards = [r for r in db.list_redeemable_products()
+                   if user["points"] >= r["points_required"] and r.get("ally_id") == ally_id]
+        if not rewards:
+            await query.edit_message_text("❌ No hay premios disponibles en esta empresa para tus puntos.")
+            return
+        await _show_provider_products(update, user, rewards)
+        return
+
+    if data.startswith("cnj_p_"):
+        product_id = data.replace("cnj_p_", "")
+        # Confirmar canje en el mensaje y proceder
+        await _process_redeem_callback(query, context, product_id)
+        return
+
+
+async def _process_redeem_callback(query, context, product_id_str):
+    """Versión de _process_redeem para callback_query."""
+    user_id = query.from_user.id
+    logger.info(f"[REDEEM_CB] user={user_id} product={product_id_str}")
+
+    if not product_id_str.isdigit():
+        await query.edit_message_text("❌ Producto no válido.")
+        return
+
+    product_id = int(product_id_str)
+    user = db.get_user(user_id)
+    product = db.get_product(product_id)
+
+    if not product or not product["is_active"] or product["points_required"] <= 0:
+        await query.edit_message_text("❌ Ese producto no existe o no está disponible.")
+        return
+    if user["points"] < product["points_required"]:
+        await query.edit_message_text(
+            f"❌ No tienes suficientes puntos.\n"
+            f"Necesitas: {product['points_required']} | Tienes: {user['points']}"
+        )
+        return
+
+    success = db.subtract_points(user_id, product["points_required"])
+    if not success:
+        await query.edit_message_text("❌ Error al procesar el canje. Intenta de nuevo.")
+        return
+
+    voucher_code = secrets.token_hex(4).upper()
+    db.create_redemption(user_id, product_id, product["points_required"], voucher_code)
+    updated_user = db.get_user(user_id)
+    logger.info(f"[REDEEM_CB] Redemption code={voucher_code}")
+
+    try:
+        voucher_path = generate_voucher(
+            user_name=user["full_name"],
+            reward_name=product["name"],
+            provider=product["provider"],
+            points_used=product["points_required"],
+            new_balance=updated_user["points"],
+            voucher_code=voucher_code
+        )
+        logger.info(f"[REDEEM_CB] Voucher: {voucher_path}")
+    except Exception as e:
+        logger.exception(f"[REDEEM_CB] Error voucher: {e}")
+        voucher_path = None
+
+    await query.edit_message_text(
+        f"✅ *¡Canje exitoso!*\n\n"
+        f"🎁 {product['name']}\n"
+        f"🏢 {product['provider']}\n"
+        f"💰 Puntos usados: {product['points_required']}\n"
+        f"⭐ Nuevo saldo: *{updated_user['points']} pts*\n\n"
+        f"🎟️ Código: `{voucher_code}`\n\n"
+        "Presenta este código al momento de usar tu premio.",
+        parse_mode="Markdown"
+    )
+
+    if voucher_path and os.path.exists(voucher_path):
+        try:
+            with open(voucher_path, "rb") as f:
+                await context.bot.send_photo(
+                    chat_id=user_id,
+                    photo=f,
+                    caption=f"🎟️ Tu comprobante de canje — Código: `{voucher_code}`",
+                    parse_mode="Markdown"
+                )
+            logger.info(f"[REDEEM_CB] Voucher enviado")
+        except Exception as e:
+            logger.exception(f"[REDEEM_CB] Error enviando voucher: {e}")
+
+    try:
+        await _notify_provider(context.bot, product, user, voucher_code)
+    except Exception as e:
+        logger.exception(f"[REDEEM_CB] Error notificando provider: {e}")
 
 
 # ─── /mis_canjes ─────────────────────────────────────────────────────────────
@@ -540,8 +699,9 @@ async def ver_tareas(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def register(app):
     from telegram.ext import filters as f
 
-    # Canjear: /canjear o /canjear <id>
+    # Canjear: /canjear o /canjear <id> + callback_query handler
     app.add_handler(CommandHandler("canjear", canjear_start))
+    app.add_handler(CallbackQueryHandler(canjear_callback, pattern=r"^cnj_"))
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("mis_puntos", mis_puntos))
