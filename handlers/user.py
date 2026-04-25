@@ -21,7 +21,7 @@ from voucher import generate_voucher
 
 BOT_USERNAME = None
 
-SCREENSHOTS_DIR = "screenshots"
+SCREENSHOTS_DIR = os.getenv("SCREENSHOTS_DIR", "screenshots")
 os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
 
 
@@ -127,20 +127,26 @@ async def ver_premios(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def _process_redeem(update: Update, context: ContextTypes.DEFAULT_TYPE, param: str):
     """Procesa el canje de un producto. param = 'redeem_<id>' o '<id>'."""
+    user_id = update.effective_user.id
+    logger.info(f"[REDEEM] Inicio user={user_id} param={param}")
+
     product_id_str = param.replace("redeem_", "")
     if not product_id_str.isdigit():
+        logger.warning(f"[REDEEM] Param no numerico: {param}")
         await update.message.reply_text("❌ Producto no válido.")
         return
 
     product_id = int(product_id_str)
-    user_id = update.effective_user.id
     user = db.get_user(user_id)
     product = db.get_product(product_id)
+    logger.info(f"[REDEEM] product_id={product_id} found={product is not None}")
 
     if not product or not product["is_active"] or product["points_required"] <= 0:
+        logger.warning(f"[REDEEM] Producto no disponible product={product}")
         await update.message.reply_text("❌ Ese producto no existe o no está disponible.")
         return
     if user["points"] < product["points_required"]:
+        logger.info(f"[REDEEM] Sin puntos user_pts={user['points']} req={product['points_required']}")
         await update.message.reply_text(
             f"❌ No tienes suficientes puntos.\n"
             f"Necesitas: {product['points_required']} | Tienes: {user['points']}"
@@ -148,6 +154,7 @@ async def _process_redeem(update: Update, context: ContextTypes.DEFAULT_TYPE, pa
         return
 
     success = db.subtract_points(user_id, product["points_required"])
+    logger.info(f"[REDEEM] subtract_points success={success}")
     if not success:
         await update.message.reply_text("❌ Error al procesar el canje. Intenta de nuevo.")
         return
@@ -155,15 +162,21 @@ async def _process_redeem(update: Update, context: ContextTypes.DEFAULT_TYPE, pa
     voucher_code = secrets.token_hex(4).upper()
     db.create_redemption(user_id, product_id, product["points_required"], voucher_code)
     updated_user = db.get_user(user_id)
+    logger.info(f"[REDEEM] Redemption creada code={voucher_code}")
 
-    voucher_path = generate_voucher(
-        user_name=user["full_name"],
-        reward_name=product["name"],
-        provider=product["provider"],
-        points_used=product["points_required"],
-        new_balance=updated_user["points"],
-        voucher_code=voucher_code
-    )
+    try:
+        voucher_path = generate_voucher(
+            user_name=user["full_name"],
+            reward_name=product["name"],
+            provider=product["provider"],
+            points_used=product["points_required"],
+            new_balance=updated_user["points"],
+            voucher_code=voucher_code
+        )
+        logger.info(f"[REDEEM] Voucher generado: {voucher_path}")
+    except Exception as e:
+        logger.exception(f"[REDEEM] Error generando voucher: {e}")
+        voucher_path = None
 
     await update.message.reply_text(
         f"✅ *¡Canje exitoso!*\n\n"
@@ -177,16 +190,25 @@ async def _process_redeem(update: Update, context: ContextTypes.DEFAULT_TYPE, pa
     )
 
     if voucher_path and os.path.exists(voucher_path):
-        with open(voucher_path, "rb") as f:
-            await context.bot.send_photo(
-                chat_id=user_id,
-                photo=f,
-                caption=f"🎟️ Tu comprobante de canje — Código: `{voucher_code}`",
-                parse_mode="Markdown"
-            )
+        try:
+            with open(voucher_path, "rb") as f:
+                await context.bot.send_photo(
+                    chat_id=user_id,
+                    photo=f,
+                    caption=f"🎟️ Tu comprobante de canje — Código: `{voucher_code}`",
+                    parse_mode="Markdown"
+                )
+            logger.info(f"[REDEEM] Voucher enviado al usuario")
+        except Exception as e:
+            logger.exception(f"[REDEEM] Error enviando voucher photo: {e}")
+    else:
+        logger.warning(f"[REDEEM] Voucher path no existe: {voucher_path}")
 
     # Notificar al proveedor por Telegram
-    await _notify_provider(context.bot, product, user, voucher_code)
+    try:
+        await _notify_provider(context.bot, product, user, voucher_code)
+    except Exception as e:
+        logger.exception(f"[REDEEM] Error notificando provider: {e}")
 
 
 async def _notify_provider(bot, product, user, voucher_code):

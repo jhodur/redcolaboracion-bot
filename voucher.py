@@ -8,7 +8,7 @@ import json
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 
-VOUCHERS_DIR = "vouchers"
+VOUCHERS_DIR = os.getenv("VOUCHERS_DIR", "vouchers")
 os.makedirs(VOUCHERS_DIR, exist_ok=True)
 
 COUNTER_FILE = os.path.join(VOUCHERS_DIR, "counter.json")

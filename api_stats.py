@@ -275,6 +275,36 @@ def admin_delete_ally(aid):
     return jsonify({"ok": True})
 
 
+@app.route("/api/admin/debug/test-voucher/<int:product_id>")
+def admin_test_voucher(product_id):
+    """Genera un voucher de prueba para diagnosticar."""
+    db.init_db()
+    try:
+        from voucher import generate_voucher
+        product = db.get_product(product_id)
+        if not product:
+            return jsonify({"ok": False, "error": "Producto no existe"}), 404
+        path = generate_voucher(
+            user_name="Test User",
+            reward_name=product["name"],
+            provider=product["provider"],
+            points_used=product["points_required"],
+            new_balance=0,
+            voucher_code="TEST1234"
+        )
+        return jsonify({
+            "ok": True,
+            "path": path,
+            "exists": os.path.exists(path) if path else False,
+            "size": os.path.getsize(path) if path and os.path.exists(path) else 0,
+            "vouchers_dir": os.getenv("VOUCHERS_DIR", "vouchers"),
+            "vouchers_dir_exists": os.path.exists(os.getenv("VOUCHERS_DIR", "vouchers"))
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({"ok": False, "error": str(e), "traceback": traceback.format_exc()}), 500
+
+
 @app.route("/api/admin/scheduled")
 def admin_scheduled():
     """Lista los scheduled_tasks recientes para debugging."""
