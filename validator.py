@@ -4,11 +4,14 @@ Analiza la imagen y determina si el usuario completó la tarea.
 """
 
 import base64
+import logging
 import os
 import anthropic
 
 import database as db
 from config import ANTHROPIC_API_KEY, PROJECT_NAME
+
+logger = logging.getLogger(__name__)
 
 _client = None
 
@@ -105,34 +108,38 @@ async def validate_and_award(bot, completion: dict):
             db.add_points(completion["user_id"], points)
             updated_user = db.get_user(completion["user_id"])
 
-            # Notificar al usuario con invitación a canjear
-            await bot.send_message(
-                chat_id=completion["user_id"],
-                text=(
-                    f"✅ *¡Tarea validada!*\n\n"
-                    f"📌 {task['title']}\n"
-                    f"💰 +{points} puntos ganados\n"
-                    f"⭐ Tu saldo: *{updated_user['points']} pts*\n\n"
-                    f"_{reason}_\n\n"
-                    "🎁 *¿Quieres canjear tus puntos?*\n"
-                    "Escribe /canjear para ver los premios disponibles"
-                ),
-                parse_mode="Markdown"
-            )
+            # Notificar al usuario (sin Markdown para evitar errores de parseo)
+            try:
+                await bot.send_message(
+                    chat_id=completion["user_id"],
+                    text=(
+                        f"✅ ¡Tarea validada!\n\n"
+                        f"📌 {task['title']}\n"
+                        f"💰 +{points} puntos ganados\n"
+                        f"⭐ Tu saldo: {updated_user['points']} pts\n\n"
+                        f"{reason}\n\n"
+                        "🎁 ¿Quieres canjear tus puntos?\n"
+                        "Escribe /canjear para ver los premios disponibles"
+                    )
+                )
+            except Exception as notify_err:
+                logger.warning(f"No se pudo notificar aprobacion al usuario: {notify_err}")
         else:
             status = "rejected"
             db.update_completion(completion["id"], status, 0, reason)
-            await bot.send_message(
-                chat_id=completion["user_id"],
-                text=(
-                    f"❌ *Comprobante no válido*\n\n"
-                    f"📌 {task['title']}\n\n"
-                    f"Motivo: _{reason}_\n\n"
-                    "Por favor intenta de nuevo con un screenshot más claro "
-                    "que muestre la acción realizada."
-                ),
-                parse_mode="Markdown"
-            )
+            try:
+                await bot.send_message(
+                    chat_id=completion["user_id"],
+                    text=(
+                        f"❌ Comprobante no válido\n\n"
+                        f"📌 {task['title']}\n\n"
+                        f"Motivo: {reason}\n\n"
+                        "Por favor intenta de nuevo con un screenshot más claro "
+                        "que muestre la acción realizada."
+                    )
+                )
+            except Exception as notify_err:
+                logger.warning(f"No se pudo notificar rechazo al usuario: {notify_err}")
 
     except Exception as e:
         # Si falla la IA, aprobar manualmente o marcar para revisión
