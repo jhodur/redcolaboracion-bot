@@ -275,6 +275,23 @@ def admin_delete_ally(aid):
     return jsonify({"ok": True})
 
 
+@app.route("/api/admin/debug/approve-completion/<int:cid>/<int:points>", methods=["POST"])
+def admin_approve_completion(cid, points):
+    """Marca una completion como approved con los puntos dados (no agrega puntos al usuario)."""
+    db.init_db()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute(
+            "UPDATE task_completions SET status='approved', points_awarded=?, reviewed_at=datetime('now') WHERE id=?",
+            (points, cid)
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @app.route("/api/admin/debug/refund/<int:user_id>/<int:points>", methods=["POST"])
 def admin_refund_points(user_id, points):
     """Devuelve puntos a un usuario (para casos de canjes fallidos)."""
