@@ -161,3 +161,168 @@ async def validate_screenshot(bot, pending: dict):
     completion = db.get_completion(pending["id"])
     if completion:
         await validate_and_award(bot, completion)
+
+
+async def detect_and_validate(bot, user_id: int, screenshot_path: str):
+    """
+    Detecta automáticamente a qué tarea activa del día corresponde el screenshot.
+    Solo considera tareas publicadas hoy (las de días anteriores ya no aplican).
+    Si detecta y valida, registra la completion y otorga puntos.
+    Retorna dict con resultado.
+    """
+    if not os.path.exists(screenshot_path):
+        return {"ok": False, "error": "Archivo no encontrado"}
+
+    active_tasks = db.list_active_tasks_today()
+    if not active_tasks:
+        return {"ok": False, "error": "no_active_tasks"}
+
+    # Filtrar tareas que el usuario ya completó hoy (para evitar duplicados)
+    available = []
+    for t in active_tasks:
+        if not db.has_completed_task(user_id, t["scheduled_id"]):
+            available.append(t)
+
+    if not available:
+        return {"ok": False, "error": "all_completed"}
+
+    try:
+        with open(screenshot_path, "rb") as f:
+            image_data = base64.standard_b64encode(f.read()).decode("utf-8")
+
+        # Construir lista enumerada de tareas
+        tasks_text_lines = []
+        for i, t in enumerate(available, 1):
+            url_info = f" | URL: {t['target_url']}" if t.get("target_url") else ""
+            tasks_text_lines.append(
+                f"{i}. ID={t['id']} | EMPRESA: {t['business_name']} | "
+                f"TAREA: {t['title']} | "
+                f"DESCRIPCIÓN: {t['description']} | "
+                f"INSTRUCCIONES: {t['instructions']}{url_info}"
+            )
+        tasks_text = "\n".join(tasks_text_lines)
+
+        prompt = f"""Eres el validador automático de tareas del sistema de gamificación de {PROJECT_NAME}.
+
+El usuario envió un screenshot como evidencia. Tu trabajo es:
+1. Determinar a CUÁL de las siguientes tareas activas corresponde el screenshot
+2. Validar si la evidencia es válida para esa tarea
+
+TAREAS ACTIVAS DEL DÍA:
+{tasks_text}
+
+Analiza la imagen y determina:
+- ¿A cuál tarea (por su ID) corresponde el screenshot?
+- ¿La evidencia es válida para esa tarea?
+- ¿La imagen es auténtica?
+
+Si el screenshot NO corresponde a ninguna de las tareas listadas, responde matched_task_id: null.
+
+Responde ÚNICAMENTE en este formato JSON (sin texto adicional):
+{{
+  "matched_task_id": ID de la tarea o null si ninguna coincide,
+  "approved": true si la evidencia es válida para esa tarea, false si no,
+  "confidence": número del 0 al 100,
+  "reason": "explicación breve en español"
+}}
+
+Sé generoso con la aprobación si hay evidencia razonable.
+Si el screenshot muestra una acción de Facebook/Instagram pero no corresponde a la URL/empresa de las tareas listadas, marca matched_task_id como null."""
+
+        client = get_client()
+        response = client.messages.create(
+            model="claude-opus-4-6",
+            max_tokens=400,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/jpeg",
+                            "data": image_data,
+                        }
+                    },
+                    {"type": "text", "text": prompt}
+                ]
+            }]
+        )
+
+        raw = response.content[0].text.strip()
+        import json
+        if "```" in raw:
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        result = json.loads(raw.strip())
+
+        matched_task_id = result.get("matched_task_id")
+        approved = result.get("approved", False)
+        confidence = result.get("confidence", 0)
+        reason = result.get("reason", "")
+
+        # Si no detectó tarea
+        if not matched_task_id:
+            return {"ok": False, "error": "no_match", "reason": reason}
+
+        # Buscar la tarea detectada en la lista de disponibles
+        matched = next((t for t in available if t["id"] == matched_task_id), None)
+        if not matched:
+            return {"ok": False, "error": "invalid_match", "reason": "Tarea detectada no está disponible"}
+
+        # Crear la completion para esa tarea específica
+        completion_id = db.submit_completion(
+            user_id=user_id,
+            task_id=matched["id"],
+            scheduled_id=matched["scheduled_id"],
+            screenshot_path=screenshot_path
+        )
+
+        if completion_id is None:
+            return {"ok": False, "error": "duplicate"}
+
+        if approved and confidence >= 50:
+            points = matched["points_value"]
+            db.update_completion(completion_id, "approved", points, reason)
+            db.add_points(user_id, points)
+            updated_user = db.get_user(user_id)
+
+            try:
+                await bot.send_message(
+                    chat_id=user_id,
+                    text=(
+                        f"✅ ¡Tarea validada!\n\n"
+                        f"🏢 {matched['business_name']}\n"
+                        f"📌 {matched['title']}\n"
+                        f"💰 +{points} puntos ganados\n"
+                        f"⭐ Tu saldo: {updated_user['points']} pts\n\n"
+                        f"{reason}\n\n"
+                        "🎁 ¿Quieres canjear tus puntos?\n"
+                        "Escribe /canjear para ver los premios disponibles"
+                    )
+                )
+            except Exception as notify_err:
+                logger.warning(f"No se pudo notificar al usuario: {notify_err}")
+
+            return {"ok": True, "task": matched, "points": points}
+        else:
+            db.update_completion(completion_id, "rejected", 0, reason)
+            try:
+                await bot.send_message(
+                    chat_id=user_id,
+                    text=(
+                        f"❌ Comprobante no válido\n\n"
+                        f"🏢 {matched['business_name']}\n"
+                        f"📌 {matched['title']}\n\n"
+                        f"Motivo: {reason}\n\n"
+                        "Por favor intenta de nuevo con un screenshot más claro."
+                    )
+                )
+            except Exception:
+                pass
+            return {"ok": False, "error": "rejected", "reason": reason}
+
+    except Exception as e:
+        logger.exception(f"Error en detect_and_validate: {e}")
+        return {"ok": False, "error": "exception", "reason": str(e)}

@@ -262,6 +262,25 @@ def list_upcoming_scheduled():
         return [dict(r) for r in rows]
 
 
+def list_active_tasks_today():
+    """Tareas publicadas hoy que aún están abiertas a recibir evidencia."""
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT DISTINCT t.id, t.title, t.description, t.instructions,
+                   t.target_url, t.points_value, t.ally_id,
+                   COALESCE(a.business_name, '') as business_name,
+                   st.id as scheduled_id, st.send_at
+            FROM scheduled_tasks st
+            JOIN tasks t ON t.id = st.task_id
+            LEFT JOIN allies a ON a.id = t.ally_id
+            WHERE st.sent = 1
+              AND t.is_active = 1
+              AND date(st.send_at) = date('now', 'localtime')
+            ORDER BY st.send_at DESC
+        """).fetchall()
+        return [dict(r) for r in rows]
+
+
 # ─── Task Completions ────────────────────────────────────────────────────────
 
 def submit_completion(user_id: int, task_id: int, scheduled_id: int, screenshot_path: str):

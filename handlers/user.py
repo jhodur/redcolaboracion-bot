@@ -507,33 +507,18 @@ async def mis_canjes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ─── Recibir screenshot ───────────────────────────────────────────────────────
 
 async def receive_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """El usuario envía una foto como comprobante de tarea."""
-    from validator import validate_and_award
+    """El usuario envía una foto como comprobante. La IA detecta a cuál tarea del día corresponde."""
+    from validator import detect_and_validate
 
     user = _ensure_user(update)
 
-    # Verificar si hay tarea activa en el grupo
-    pending_tasks = db.get_pending_scheduled_tasks()
-    # Buscar la más reciente que ya fue enviada
-    sent_tasks = [t for t in db.list_upcoming_scheduled() if t["sent"] == 1]
-
-    if not sent_tasks:
+    # Verificar que haya tareas activas hoy
+    active_today = db.list_active_tasks_today()
+    if not active_today:
         await update.message.reply_text(
-            "⚠️ No hay tareas activas en este momento.\n"
-            "Espera a que el administrador envíe una tarea al grupo."
-        )
-        return
-
-    # Usar la tarea más reciente enviada
-    latest = db.get_scheduled_task(sent_tasks[0]["id"])
-    if not latest:
-        await update.message.reply_text("⚠️ No se encontró la tarea activa.")
-        return
-
-    # Verificar si ya la completó
-    if db.has_completed_task(user["user_id"], latest["id"]):
-        await update.message.reply_text(
-            "✅ Ya completaste esta tarea. ¡Espera la próxima!"
+            "⚠️ No hay tareas activas hoy.\n"
+            "Las tareas solo se pueden completar el mismo día en que se publican.\n\n"
+            "Mantente atento al canal para las próximas tareas."
         )
         return
 
@@ -542,34 +527,46 @@ async def receive_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE)
     file = await photo.get_file()
     screenshot_path = os.path.join(
         SCREENSHOTS_DIR,
-        f"{user['user_id']}_{latest['id']}_{int(datetime.now().timestamp())}.jpg"
+        f"{user['user_id']}_{int(datetime.now().timestamp())}.jpg"
     )
     await file.download_to_drive(screenshot_path)
 
-    # Registrar envío pendiente
-    completion_id = db.submit_completion(
-        user_id=user["user_id"],
-        task_id=latest["task_id"],
-        scheduled_id=latest["id"],
-        screenshot_path=screenshot_path
-    )
-
-    if completion_id is None:
-        await update.message.reply_text(
-            "⚠️ Ya enviaste un comprobante para esta tarea. Espera la validación."
-        )
-        return
-
     await update.message.reply_text(
-        "📸 *Comprobante recibido*\n\n"
-        "Tu screenshot está siendo validado con IA. "
-        "Te notificaremos el resultado en breve. ⏳",
-        parse_mode="Markdown"
+        "📸 Comprobante recibido. Validando con IA... ⏳"
     )
 
-    # Validar con IA inmediatamente
-    completion = db.get_completion(completion_id)
-    await validate_and_award(context.bot, completion)
+    # Validar con IA — detecta automáticamente a qué tarea corresponde
+    result = await detect_and_validate(context.bot, user["user_id"], screenshot_path)
+
+    if not result["ok"]:
+        err = result.get("error", "")
+        if err == "no_active_tasks":
+            await update.message.reply_text(
+                "⚠️ No hay tareas activas hoy. Espera la próxima publicación."
+            )
+        elif err == "all_completed":
+            await update.message.reply_text(
+                "✅ Ya completaste todas las tareas de hoy. ¡Espera las de mañana!"
+            )
+        elif err == "no_match":
+            reason = result.get("reason", "")
+            await update.message.reply_text(
+                f"❌ No pude identificar a qué tarea corresponde este screenshot.\n\n"
+                f"{reason}\n\n"
+                "Asegúrate de que el screenshot muestre claramente la acción "
+                "realizada en la página/empresa indicada en alguna de las tareas activas hoy."
+            )
+        elif err == "duplicate":
+            await update.message.reply_text(
+                "⚠️ Ya enviaste un comprobante para esa tarea."
+            )
+        elif err == "rejected":
+            # El mensaje ya lo envió detect_and_validate
+            pass
+        else:
+            await update.message.reply_text(
+                "⏳ Tu comprobante está en revisión. Te notificaremos pronto."
+            )
 
 
 # ─── Bienvenida a nuevos miembros ─────────────────────────────────────────────
@@ -696,6 +693,32 @@ async def ver_tareas(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ─── Registro ────────────────────────────────────────────────────────────────
 
+async def chat_with_agent(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Recibe mensajes de texto privados y responde con el agente IA."""
+    from chat_agent import chat_response
+
+    # No interferir si el admin está esperando ingresar un código de voucher
+    if context.user_data.get("waiting_code"):
+        return
+
+    user = _ensure_user(update)
+    msg_text = update.message.text or ""
+
+    # Mostrar "escribiendo..." mientras procesa
+    try:
+        await context.bot.send_chat_action(
+            chat_id=update.effective_chat.id,
+            action="typing"
+        )
+    except Exception:
+        pass
+
+    response = await chat_response(user["user_id"], msg_text)
+
+    # Sin Markdown para evitar errores de parseo
+    await update.message.reply_text(response)
+
+
 def register(app):
     from telegram.ext import filters as f
 
@@ -724,4 +747,10 @@ def register(app):
     app.add_handler(MessageHandler(
         f.PHOTO & f.ChatType.PRIVATE,
         receive_screenshot
+    ))
+
+    # Agente conversacional: responde mensajes de texto en chat privado (no comandos)
+    app.add_handler(MessageHandler(
+        f.TEXT & ~f.COMMAND & f.ChatType.PRIVATE,
+        chat_with_agent
     ))
