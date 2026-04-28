@@ -568,7 +568,16 @@ def increment_product_redemption(product_id: int) -> dict:
 def get_product(product_id):
     with get_conn() as conn:
         row = conn.execute("""
-            SELECT p.*, a.business_name as provider, a.telegram_user
+            SELECT p.*,
+                   a.business_name as provider,
+                   a.telegram_user,
+                   a.phone as ally_phone,
+                   a.email as ally_email,
+                   a.location as ally_location,
+                   a.city as ally_city,
+                   a.instagram as ally_instagram,
+                   a.facebook as ally_facebook,
+                   a.website as ally_website
             FROM ally_products p
             JOIN allies a ON a.id = p.ally_id
             WHERE p.id = ?

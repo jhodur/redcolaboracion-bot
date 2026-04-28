@@ -31,6 +31,44 @@ def _ensure_user(update: Update):
     return db.get_user(user.id)
 
 
+def _build_company_contact_block(product: dict) -> str:
+    """Bloque de contacto de la empresa para enviar al usuario después del canje."""
+    lines = ["📞 Contacto de la Empresa", "━━━━━━━━━━━━━━━━━"]
+    lines.append(f"🏢 {product.get('provider') or '-'}")
+    if product.get("ally_phone"):
+        lines.append(f"📱 Tel/WhatsApp: {product['ally_phone']}")
+    if product.get("telegram_user"):
+        tg = product["telegram_user"].lstrip("@")
+        lines.append(f"💬 Telegram: @{tg}")
+    if product.get("ally_email"):
+        lines.append(f"✉️ Email: {product['ally_email']}")
+    if product.get("ally_instagram"):
+        ig = product["ally_instagram"].lstrip("@")
+        lines.append(f"📷 Instagram: @{ig}")
+    if product.get("ally_facebook"):
+        lines.append(f"📘 Facebook: {product['ally_facebook']}")
+    if product.get("ally_website"):
+        lines.append(f"🌐 Web: {product['ally_website']}")
+    if product.get("ally_city") or product.get("ally_location"):
+        loc = ", ".join([x for x in [product.get("ally_city"), product.get("ally_location")] if x])
+        lines.append(f"📍 Ubicación: {loc}")
+    return "\n".join(lines)
+
+
+def _build_user_contact_block(tg_user) -> str:
+    """Bloque de contacto del usuario (cliente) para enviar a la empresa."""
+    lines = ["👤 Contacto del Cliente", "━━━━━━━━━━━━━━━━━"]
+    full_name = tg_user.full_name or tg_user.first_name or "Cliente"
+    lines.append(f"📝 Nombre: {full_name}")
+    if tg_user.username:
+        lines.append(f"💬 Telegram: @{tg_user.username}")
+        lines.append(f"   👉 https://t.me/{tg_user.username}")
+    else:
+        lines.append(f"💬 Telegram ID: {tg_user.id}")
+        lines.append(f"   👉 tg://user?id={tg_user.id}")
+    return "\n".join(lines)
+
+
 # ─── /start ──────────────────────────────────────────────────────────────────
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -200,6 +238,7 @@ async def _process_redeem(update: Update, context: ContextTypes.DEFAULT_TYPE, pa
         logger.exception(f"[REDEEM] Error generando voucher: {e}")
         voucher_path = None
 
+    company_contact = _build_company_contact_block(product)
     await update.message.reply_text(
         "✅ ¡Canje Exitoso!\n"
         "━━━━━━━━━━━━━━━━━\n"
@@ -209,7 +248,8 @@ async def _process_redeem(update: Update, context: ContextTypes.DEFAULT_TYPE, pa
         f"⭐ Nuevo saldo: {updated_user['points']} pts\n"
         "━━━━━━━━━━━━━━━━━\n"
         f"🎟️ Código: {voucher_code}\n\n"
-        "Presenta este código al momento de usar tu premio."
+        "Presenta este código al momento de usar tu premio.\n\n"
+        f"{company_contact}"
     )
 
     if voucher_path and os.path.exists(voucher_path):
@@ -228,25 +268,26 @@ async def _process_redeem(update: Update, context: ContextTypes.DEFAULT_TYPE, pa
 
     # Notificar al proveedor por Telegram
     try:
-        await _notify_provider(context.bot, product, user, voucher_code, stock_info)
+        await _notify_provider(context.bot, product, user, voucher_code, stock_info,
+                               tg_user=update.effective_user)
     except Exception as e:
         logger.exception(f"[REDEEM] Error notificando provider: {e}")
 
 
-async def _notify_provider(bot, product, user, voucher_code, stock_info=None):
+async def _notify_provider(bot, product, user, voucher_code, stock_info=None, tg_user=None):
     """Envía notificación al contacto de Telegram del proveedor."""
     try:
-        tg_user = product.get("telegram_user", "")
-        if not tg_user:
+        provider_tg = product.get("telegram_user", "")
+        if not provider_tg:
             return
 
-        tg_user = tg_user.lstrip("@")
+        provider_tg = provider_tg.lstrip("@")
         import sqlite3
         from config import DB_PATH
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         row = conn.execute(
-            "SELECT user_id FROM users WHERE username = ?", (tg_user,)
+            "SELECT user_id FROM users WHERE username = ?", (provider_tg,)
         ).fetchone()
         conn.close()
 
@@ -254,6 +295,14 @@ async def _notify_provider(bot, product, user, voucher_code, stock_info=None):
             return
 
         provider_chat_id = row["user_id"]
+
+        # Bloque de contacto del cliente para enviar a la empresa
+        client_contact_block = ""
+        if tg_user is not None:
+            try:
+                client_contact_block = "\n\n" + _build_user_contact_block(tg_user)
+            except Exception as cc_err:
+                logger.warning(f"No se pudo armar contacto cliente: {cc_err}")
 
         # Construir resumen del inventario restante de la empresa
         ally_id = product.get("ally_id")
@@ -293,6 +342,7 @@ async def _notify_provider(bot, product, user, voucher_code, stock_info=None):
                 "━━━━━━━━━━━━━━━━━\n"
                 f"🎟️ Código: {voucher_code}\n\n"
                 "El cliente presentará este código para redimir su premio."
+                f"{client_contact_block}"
                 f"{inventory_block}"
             )
         )
@@ -539,6 +589,7 @@ async def _process_redeem_callback(query, context, product_id_str):
         logger.exception(f"[REDEEM_CB] Error voucher: {e}")
         voucher_path = None
 
+    company_contact = _build_company_contact_block(product)
     await query.edit_message_text(
         "✅ ¡Canje Exitoso!\n"
         "━━━━━━━━━━━━━━━━━\n"
@@ -548,7 +599,8 @@ async def _process_redeem_callback(query, context, product_id_str):
         f"⭐ Nuevo saldo: {updated_user['points']} pts\n"
         "━━━━━━━━━━━━━━━━━\n"
         f"🎟️ Código: {voucher_code}\n\n"
-        "Presenta este código al momento de usar tu premio."
+        "Presenta este código al momento de usar tu premio.\n\n"
+        f"{company_contact}"
     )
 
     if voucher_path and os.path.exists(voucher_path):
@@ -564,7 +616,8 @@ async def _process_redeem_callback(query, context, product_id_str):
             logger.exception(f"[REDEEM_CB] Error enviando voucher: {e}")
 
     try:
-        await _notify_provider(context.bot, product, user, voucher_code, stock_info)
+        await _notify_provider(context.bot, product, user, voucher_code, stock_info,
+                               tg_user=query.from_user)
     except Exception as e:
         logger.exception(f"[REDEEM_CB] Error notificando provider: {e}")
 
