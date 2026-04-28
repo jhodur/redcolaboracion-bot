@@ -50,17 +50,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     name = update.effective_user.first_name
     await update.message.reply_text(
-        f"👋 ¡Hola, {name}! Bienvenido/a a *{PROJECT_NAME}*\n\n"
-        "Aquí puedes completar tareas, acumular puntos y canjearlos por premios.\n\n"
-        "📌 *Comandos disponibles:*\n"
-        "/tareas — Ver tareas activas\n"
-        "/mis\\_puntos — Ver tu saldo de puntos\n"
-        "/premios — Ver catálogo de premios\n"
-        "/canjear — Canjear puntos por un premio\n"
-        "/mis\\_canjes — Ver tus canjes anteriores\n"
-        "/historial — Ver tus últimas tareas\n\n"
-        "Para completar una tarea, envíame el screenshot como foto en este chat.",
-        parse_mode="Markdown"
+        f"👋 ¡Hola, {name}!\n"
+        f"Bienvenido/a a {PROJECT_NAME} 🌎\n"
+        "━━━━━━━━━━━━━━━━━\n\n"
+        "Aquí puedes completar tareas, acumular puntos y canjearlos por premios reales en nuestras empresas aliadas.\n\n"
+        "📌 Comandos disponibles\n"
+        "━━━━━━━━━━━━━━━━━\n"
+        "📋 /tareas — Tareas activas hoy\n"
+        "💰 /mis_puntos — Tu saldo actual\n"
+        "🎁 /premios — Catálogo de premios\n"
+        "🛒 /canjear — Canjear tus puntos\n"
+        "🎟️ /mis_canjes — Tus canjes anteriores\n"
+        "🗂️ /historial — Tus últimas tareas\n\n"
+        "💬 También puedes escribirme cualquier pregunta y te respondo.\n\n"
+        "📸 Para completar una tarea, envíame el screenshot como foto en este chat."
     )
 
 
@@ -71,16 +74,16 @@ async def mis_puntos(update: Update, context: ContextTypes.DEFAULT_TYPE):
     completions = db.get_user_completions(user["user_id"], limit=3)
     recent = ""
     if completions:
-        recent = "\n\n📋 *Últimas actividades:*"
+        recent = "\n\n📋 Últimas actividades\n━━━━━━━━━━━━━━━━━"
         for c in completions:
             emoji = "✅" if c["status"] == "approved" else ("⏳" if c["status"] == "pending" else "❌")
-            pts = f"+{c['points_awarded']} pts" if c["status"] == "approved" else ""
-            recent += f"\n{emoji} {c['title']} {pts}"
+            pts = f"  +{c['points_awarded']} pts" if c["status"] == "approved" else ""
+            recent += f"\n{emoji} {c['title']}{pts}"
     await update.message.reply_text(
-        f"💰 *Tus puntos — {PROJECT_NAME}*\n\n"
+        f"💰 Tus Puntos — {PROJECT_NAME}\n"
+        "━━━━━━━━━━━━━━━━━\n"
         f"👤 {user['full_name']}\n"
-        f"⭐ Puntos acumulados: *{user['points']}*{recent}",
-        parse_mode="Markdown"
+        f"⭐ Saldo: {user['points']} pts{recent}"
     )
 
 
@@ -90,15 +93,18 @@ async def historial(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = _ensure_user(update)
     completions = db.get_user_completions(user["user_id"], limit=10)
     if not completions:
-        await update.message.reply_text("No has completado ninguna tarea todavía.")
+        await update.message.reply_text("📭 No has completado ninguna tarea todavía.")
         return
-    lines = ["📋 *Tu historial de tareas:*\n"]
+    lines = [
+        "📋 Tu Historial de Tareas",
+        "━━━━━━━━━━━━━━━━━",
+    ]
     for c in completions:
         emoji = {"approved": "✅", "pending": "⏳", "rejected": "❌"}.get(c["status"], "❓")
-        pts = f" (+{c['points_awarded']} pts)" if c["status"] == "approved" else ""
+        pts = f" · +{c['points_awarded']} pts" if c["status"] == "approved" else ""
         date = c["submitted_at"][:10]
-        lines.append(f"{emoji} {c['title']}{pts}\n   📅 {date}")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        lines.append(f"\n{emoji} {c['title']}{pts}\n   📅 {date}")
+    await update.message.reply_text("\n".join(lines))
 
 
 # ─── /premios ────────────────────────────────────────────────────────────────
@@ -107,20 +113,24 @@ async def ver_premios(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = _ensure_user(update)
     products = db.list_redeemable_products()
     if not products:
-        await update.message.reply_text("No hay premios disponibles por el momento.")
+        await update.message.reply_text("📭 No hay premios disponibles por el momento.")
         return
     lines = [
-        f"🎁 *Catálogo de Premios — {PROJECT_NAME}*\n",
-        f"💰 Tus puntos: *{user['points']}*\n"
+        f"🎁 Catálogo de Premios — {PROJECT_NAME}",
+        "━━━━━━━━━━━━━━━━━",
+        f"💰 Tus puntos: {user['points']}",
+        "━━━━━━━━━━━━━━━━━",
     ]
     for r in products:
         can = "✅" if user["points"] >= r["points_required"] else "🔒"
         lines.append(
-            f"{can} *{r['name']}*\n"
-            f"   💰 {r['points_required']} pts | 🏢 {r['provider']}"
+            f"\n{can} {r['name']}\n"
+            f"   💰 {r['points_required']} pts\n"
+            f"   🏢 {r['provider']}"
         )
-    lines.append("\nUsa /canjear para redimir tus puntos.")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+    lines.append("\n━━━━━━━━━━━━━━━━━")
+    lines.append("🛒 Usa /canjear para redimir tus puntos")
+    await update.message.reply_text("\n".join(lines))
 
 
 # ─── Lógica de canje ────────────────────────────────────────────────────────
@@ -179,14 +189,15 @@ async def _process_redeem(update: Update, context: ContextTypes.DEFAULT_TYPE, pa
         voucher_path = None
 
     await update.message.reply_text(
-        f"✅ *¡Canje exitoso!*\n\n"
+        "✅ ¡Canje Exitoso!\n"
+        "━━━━━━━━━━━━━━━━━\n"
         f"🎁 {product['name']}\n"
         f"🏢 {product['provider']}\n"
         f"💰 Puntos usados: {product['points_required']}\n"
-        f"⭐ Nuevo saldo: *{updated_user['points']} pts*\n\n"
-        f"🎟️ Código: `{voucher_code}`\n\n"
-        "Presenta este código al momento de usar tu premio.",
-        parse_mode="Markdown"
+        f"⭐ Nuevo saldo: {updated_user['points']} pts\n"
+        "━━━━━━━━━━━━━━━━━\n"
+        f"🎟️ Código: {voucher_code}\n\n"
+        "Presenta este código al momento de usar tu premio."
     )
 
     if voucher_path and os.path.exists(voucher_path):
@@ -195,8 +206,7 @@ async def _process_redeem(update: Update, context: ContextTypes.DEFAULT_TYPE, pa
                 await context.bot.send_photo(
                     chat_id=user_id,
                     photo=f,
-                    caption=f"🎟️ Tu comprobante de canje — Código: `{voucher_code}`",
-                    parse_mode="Markdown"
+                    caption=f"🎟️ Tu comprobante de canje\nCódigo: {voucher_code}"
                 )
             logger.info(f"[REDEEM] Voucher enviado al usuario")
         except Exception as e:
@@ -232,15 +242,16 @@ async def _notify_provider(bot, product, user, voucher_code):
             await bot.send_message(
                 chat_id=row["user_id"],
                 text=(
-                    f"🔔 *¡Nuevo canje en tu empresa!*\n\n"
+                    "🔔 ¡Nuevo Canje en tu Empresa!\n"
+                    "━━━━━━━━━━━━━━━━━\n"
+                    f"🏢 {product['provider']}\n"
                     f"👤 Cliente: {user['full_name']}\n"
                     f"🎁 Producto: {product['name']}\n"
                     f"💰 Puntos canjeados: {product['points_required']}\n"
-                    f"🎟️ Código: `{voucher_code}`\n\n"
-                    f"🏢 {product['provider']}\n\n"
+                    "━━━━━━━━━━━━━━━━━\n"
+                    f"🎟️ Código: {voucher_code}\n\n"
                     "El cliente presentará este código para redimir su premio."
-                ),
-                parse_mode="Markdown"
+                )
             )
     except Exception as e:
         logger.warning(f"No se pudo notificar al proveedor: {e}")
@@ -255,10 +266,10 @@ async def canjear_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not rewards:
         await update.message.reply_text(
-            f"🔒 Necesitas más puntos para canjear.\n"
-            f"💰 Tus puntos actuales: *{user['points']}*\n\n"
-            "Completa más tareas para acumular puntos.",
-            parse_mode="Markdown"
+            "🔒 Necesitas más puntos para canjear\n"
+            "━━━━━━━━━━━━━━━━━\n"
+            f"💰 Tus puntos actuales: {user['points']}\n\n"
+            "Completa más tareas para acumular puntos."
         )
         return
 
@@ -310,11 +321,11 @@ async def canjear_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )])
 
     await update.message.reply_text(
-        f"🎁 *Canjear Puntos*\n\n"
-        f"💰 Tus puntos: *{user['points']}*\n\n"
+        "🎁 Canjear Puntos\n"
+        "━━━━━━━━━━━━━━━━━\n"
+        f"💰 Tus puntos: {user['points']}\n\n"
         "Selecciona la empresa donde quieres redimir:",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="Markdown"
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 
@@ -332,24 +343,25 @@ async def _show_provider_products(update_or_query, user, provider_rewards):
     )])
 
     text = (
-        f"🏢 *{provider_rewards[0]['provider']}*\n\n"
-        f"💰 Tus puntos: *{user['points']}*\n\n"
+        f"🏢 {provider_rewards[0]['provider']}\n"
+        "━━━━━━━━━━━━━━━━━\n"
+        f"💰 Tus puntos: {user['points']}\n\n"
         "Selecciona el premio que deseas:"
     )
     markup = InlineKeyboardMarkup(keyboard)
 
     if hasattr(update_or_query, "callback_query") and update_or_query.callback_query:
         await update_or_query.callback_query.edit_message_text(
-            text, reply_markup=markup, parse_mode="Markdown"
+            text, reply_markup=markup
         )
     elif hasattr(update_or_query, "message") and update_or_query.message:
         await update_or_query.message.reply_text(
-            text, reply_markup=markup, parse_mode="Markdown"
+            text, reply_markup=markup
         )
     else:
         # Es un Update con callback_query
         await update_or_query.callback_query.edit_message_text(
-            text, reply_markup=markup, parse_mode="Markdown"
+            text, reply_markup=markup
         )
 
 
@@ -380,10 +392,11 @@ async def canjear_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             callback_data=f"cnj_a_{info['ally_id']}"
         )] for prov, info in providers.items()]
         await query.edit_message_text(
-            f"🎁 *Canjear Puntos*\n\n💰 Tus puntos: *{user['points']}*\n\n"
+            "🎁 Canjear Puntos\n"
+            "━━━━━━━━━━━━━━━━━\n"
+            f"💰 Tus puntos: {user['points']}\n\n"
             "Selecciona la empresa donde quieres redimir:",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown"
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
 
@@ -456,14 +469,15 @@ async def _process_redeem_callback(query, context, product_id_str):
         voucher_path = None
 
     await query.edit_message_text(
-        f"✅ *¡Canje exitoso!*\n\n"
+        "✅ ¡Canje Exitoso!\n"
+        "━━━━━━━━━━━━━━━━━\n"
         f"🎁 {product['name']}\n"
         f"🏢 {product['provider']}\n"
         f"💰 Puntos usados: {product['points_required']}\n"
-        f"⭐ Nuevo saldo: *{updated_user['points']} pts*\n\n"
-        f"🎟️ Código: `{voucher_code}`\n\n"
-        "Presenta este código al momento de usar tu premio.",
-        parse_mode="Markdown"
+        f"⭐ Nuevo saldo: {updated_user['points']} pts\n"
+        "━━━━━━━━━━━━━━━━━\n"
+        f"🎟️ Código: {voucher_code}\n\n"
+        "Presenta este código al momento de usar tu premio."
     )
 
     if voucher_path and os.path.exists(voucher_path):
@@ -472,8 +486,7 @@ async def _process_redeem_callback(query, context, product_id_str):
                 await context.bot.send_photo(
                     chat_id=user_id,
                     photo=f,
-                    caption=f"🎟️ Tu comprobante de canje — Código: `{voucher_code}`",
-                    parse_mode="Markdown"
+                    caption=f"🎟️ Tu comprobante de canje\nCódigo: {voucher_code}"
                 )
             logger.info(f"[REDEEM_CB] Voucher enviado")
         except Exception as e:
@@ -491,17 +504,22 @@ async def mis_canjes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = _ensure_user(update)
     redemptions = db.get_user_redemptions(user["user_id"])
     if not redemptions:
-        await update.message.reply_text("No has realizado ningún canje todavía.")
+        await update.message.reply_text("📭 No has realizado ningún canje todavía.")
         return
-    lines = ["🎟️ *Tus canjes:*\n"]
+    lines = [
+        "🎟️ Tus Canjes",
+        "━━━━━━━━━━━━━━━━━",
+    ]
     for r in redemptions:
         status_emoji = "✅" if r["status"] == "active" else "🔴"
         lines.append(
-            f"{status_emoji} *{r['name']}* — {r['provider']}\n"
-            f"   💰 {r['points_used']} pts | Código: `{r['voucher_code']}`\n"
+            f"\n{status_emoji} {r['name']}\n"
+            f"   🏢 {r['provider']}\n"
+            f"   💰 {r['points_used']} pts\n"
+            f"   🎟️ Código: {r['voucher_code']}\n"
             f"   📅 {r['redeemed_at'][:10]}"
         )
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+    await update.message.reply_text("\n".join(lines))
 
 
 # ─── Recibir screenshot ───────────────────────────────────────────────────────
@@ -606,21 +624,26 @@ async def _send_welcome(bot, chat_id, member):
     await bot.send_message(
         chat_id=chat_id,
         text=(
-            f"👋 *¡Bienvenido/a, {name}!*\n\n"
-            f"Has llegado a *{PROJECT_NAME}* — la red de turismo colaborativo.\n\n"
-            "🎮 *¿Como funciona?*\n"
-            "1️⃣ Publicamos tareas en este grupo (dar like, comentar, compartir)\n"
-            "2️⃣ Completas la tarea y nos envias el screenshot al bot\n"
-            "3️⃣ La IA valida tu screenshot y ganas puntos\n"
-            "4️⃣ Canjeas tus puntos por premios reales en nuestras empresas aliadas\n\n"
-            "💰 *Tabla de puntos:*\n"
-            "• Me gusta / Compartir = 10 pts\n"
-            "• Comentar = 15 pts\n"
-            "• Desde 20 pts ya puedes canjear premios\n\n"
-            f"📲 Escribe al bot @{BOT_USERNAME} en privado para comenzar.\n"
-            "Usa /start para ver todos los comandos disponibles."
-        ),
-        parse_mode="Markdown"
+            f"👋 ¡Bienvenido/a, {name}!\n"
+            "━━━━━━━━━━━━━━━━━\n"
+            f"Has llegado a {PROJECT_NAME} 🌎\n"
+            "La red de turismo colaborativo.\n\n"
+            "🎮 ¿Cómo funciona?\n"
+            "━━━━━━━━━━━━━━━━━\n"
+            "1️⃣ Publicamos tareas en este grupo\n"
+            "    (dar like, comentar, compartir)\n"
+            "2️⃣ Completas la tarea\n"
+            "3️⃣ Envías el screenshot al bot\n"
+            "4️⃣ La IA valida y ganas puntos\n"
+            "5️⃣ Canjeas tus puntos por premios reales\n\n"
+            "💰 Tabla de puntos\n"
+            "━━━━━━━━━━━━━━━━━\n"
+            "👍 Me gusta / Compartir → 10 pts\n"
+            "💬 Comentar → 15 pts\n"
+            "🎁 Desde 20 pts puedes canjear\n\n"
+            f"📲 Escríbele al bot @{BOT_USERNAME} en privado.\n"
+            "Usa /start para ver todos los comandos."
+        )
     )
 
 
@@ -666,17 +689,21 @@ async def ver_tareas(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"No hay tareas activas de '{provider_name}'.")
             return
 
-        lines = [f"📌 *Tareas activas — {filtered[0]['business_name']}*\n"]
+        lines = [
+            f"📌 Tareas activas — {filtered[0]['business_name']}",
+            "━━━━━━━━━━━━━━━━━"
+        ]
         for t in filtered:
-            url_line = f"\n🔗 {t['target_url']}" if t.get("target_url") else ""
+            url_line = f"\n   🔗 {t['target_url']}" if t.get("target_url") else ""
             lines.append(
-                f"📌 *{t['title']}*\n"
-                f"{t['description']}\n"
-                f"📋 {t['instructions']}{url_line}\n"
-                f"💰 *{t['points_value']} puntos*\n"
+                f"\n📌 {t['title']}\n"
+                f"   {t['description']}\n"
+                f"   📋 {t['instructions']}{url_line}\n"
+                f"   💰 {t['points_value']} puntos"
             )
-        lines.append("\nEnvía el screenshot a este chat para validar.")
-        await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        lines.append("\n━━━━━━━━━━━━━━━━━")
+        lines.append("📸 Envía el screenshot a este chat para validar")
+        await update.message.reply_text("\n".join(lines))
         return
 
     # Sin argumento: agrupar por empresa
@@ -684,11 +711,14 @@ async def ver_tareas(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for t in sent_tasks:
         by_provider.setdefault(t["business_name"], []).append(t)
 
-    lines = ["📌 *Tareas activas por empresa:*\n"]
+    lines = [
+        "📌 Tareas Activas por Empresa",
+        "━━━━━━━━━━━━━━━━━"
+    ]
     for provider, tasks in by_provider.items():
-        lines.append(f"🏢 *{provider}* ({len(tasks)} tareas)\n   👉 `/tareas {provider}`")
-    lines.append("\n_Toca el comando para ver las tareas de esa empresa_")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        lines.append(f"\n🏢 {provider} ({len(tasks)} tareas)\n   👉 /tareas {provider}")
+    lines.append("\n💡 Toca el comando para ver las tareas de esa empresa")
+    await update.message.reply_text("\n".join(lines))
 
 
 # ─── Registro ────────────────────────────────────────────────────────────────

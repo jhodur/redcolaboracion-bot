@@ -113,11 +113,13 @@ async def validate_and_award(bot, completion: dict):
                 await bot.send_message(
                     chat_id=completion["user_id"],
                     text=(
-                        f"✅ ¡Tarea validada!\n\n"
+                        "✅ ¡Tarea Validada!\n"
+                        "━━━━━━━━━━━━━━━━━\n"
                         f"📌 {task['title']}\n"
                         f"💰 +{points} puntos ganados\n"
-                        f"⭐ Tu saldo: {updated_user['points']} pts\n\n"
-                        f"{reason}\n\n"
+                        f"⭐ Tu saldo: {updated_user['points']} pts\n"
+                        "━━━━━━━━━━━━━━━━━\n"
+                        f"💬 {reason}\n\n"
                         "🎁 ¿Quieres canjear tus puntos?\n"
                         "Escribe /canjear para ver los premios disponibles"
                     )
@@ -131,9 +133,10 @@ async def validate_and_award(bot, completion: dict):
                 await bot.send_message(
                     chat_id=completion["user_id"],
                     text=(
-                        f"❌ Comprobante no válido\n\n"
+                        "❌ Comprobante No Válido\n"
+                        "━━━━━━━━━━━━━━━━━\n"
                         f"📌 {task['title']}\n\n"
-                        f"Motivo: {reason}\n\n"
+                        f"💬 Motivo: {reason}\n\n"
                         "Por favor intenta de nuevo con un screenshot más claro "
                         "que muestre la acción realizada."
                     )
@@ -292,12 +295,14 @@ Si el screenshot muestra una acción de Facebook/Instagram pero no corresponde a
                 await bot.send_message(
                     chat_id=user_id,
                     text=(
-                        f"✅ ¡Tarea validada!\n\n"
+                        "✅ ¡Tarea Validada!\n"
+                        "━━━━━━━━━━━━━━━━━\n"
                         f"🏢 {matched['business_name']}\n"
                         f"📌 {matched['title']}\n"
                         f"💰 +{points} puntos ganados\n"
-                        f"⭐ Tu saldo: {updated_user['points']} pts\n\n"
-                        f"{reason}\n\n"
+                        f"⭐ Tu saldo: {updated_user['points']} pts\n"
+                        "━━━━━━━━━━━━━━━━━\n"
+                        f"💬 {reason}\n\n"
                         "🎁 ¿Quieres canjear tus puntos?\n"
                         "Escribe /canjear para ver los premios disponibles"
                     )
@@ -312,10 +317,11 @@ Si el screenshot muestra una acción de Facebook/Instagram pero no corresponde a
                 await bot.send_message(
                     chat_id=user_id,
                     text=(
-                        f"❌ Comprobante no válido\n\n"
+                        "❌ Comprobante No Válido\n"
+                        "━━━━━━━━━━━━━━━━━\n"
                         f"🏢 {matched['business_name']}\n"
                         f"📌 {matched['title']}\n\n"
-                        f"Motivo: {reason}\n\n"
+                        f"💬 Motivo: {reason}\n\n"
                         "Por favor intenta de nuevo con un screenshot más claro."
                     )
                 )

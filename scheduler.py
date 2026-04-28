@@ -23,16 +23,19 @@ async def check_and_send_tasks(context: ContextTypes.DEFAULT_TYPE):
     for task in pending:
         try:
             bot_username = (await context.bot.get_me()).username
-            url_line = f"\n\n🔗 Enlace: {task['target_url']}" if task.get("target_url") else ""
+            url_line = f"\n🔗 {task['target_url']}" if task.get("target_url") else ""
             text = (
-                f"📢 Nueva Tarea — {PROJECT_NAME}!\n\n"
+                f"📢 ¡Nueva Tarea! — {PROJECT_NAME}\n"
+                "━━━━━━━━━━━━━━━━━\n"
                 f"📌 {task['title']}\n\n"
-                f"{task['description']}\n\n"
+                f"{task['description']}\n"
+                "━━━━━━━━━━━━━━━━━\n"
                 f"📋 ¿Cómo completarla?\n"
                 f"{task['instructions']}"
-                f"{url_line}\n\n"
-                f"💰 Vale: {task['points_value']} puntos\n\n"
-                f"✅ Cuando termines, envía el screenshot al bot en privado:\n"
+                f"{url_line}\n"
+                "━━━━━━━━━━━━━━━━━\n"
+                f"💰 Recompensa: {task['points_value']} puntos\n\n"
+                "📸 Cuando termines, envía el screenshot al bot en privado:\n"
                 f"👉 @{bot_username}"
             )
             msg = await context.bot.send_message(
