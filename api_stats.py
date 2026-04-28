@@ -333,6 +333,31 @@ def admin_refund_points(user_id, points):
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@app.route("/api/admin/debug/migrate-stock", methods=["POST"])
+def admin_migrate_stock():
+    """Agrega columnas stock_mensual, canjes_mes_actual, mes_actual a ally_products si no existen."""
+    db.init_db()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cols = [c[1] for c in cur.execute("PRAGMA table_info(ally_products)").fetchall()]
+        added = []
+        if "stock_mensual" not in cols:
+            cur.execute("ALTER TABLE ally_products ADD COLUMN stock_mensual INTEGER DEFAULT NULL")
+            added.append("stock_mensual")
+        if "canjes_mes_actual" not in cols:
+            cur.execute("ALTER TABLE ally_products ADD COLUMN canjes_mes_actual INTEGER DEFAULT 0")
+            added.append("canjes_mes_actual")
+        if "mes_actual" not in cols:
+            cur.execute("ALTER TABLE ally_products ADD COLUMN mes_actual TEXT DEFAULT ''")
+            added.append("mes_actual")
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True, "added": added, "previous_cols": cols})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @app.route("/api/admin/debug/fix-redemptions-fk", methods=["POST"])
 def admin_fix_redemptions_fk():
     """
@@ -679,12 +704,23 @@ def admin_create_product():
     ally_id = data.get("ally_id")
     if not name or not ally_id:
         return jsonify({"ok": False, "error": "Nombre y empresa son obligatorios"}), 400
+    stock_raw = data.get("stock_mensual")
+    if stock_raw in ("", None):
+        stock_mensual = None
+    else:
+        try:
+            stock_mensual = int(stock_raw)
+            if stock_mensual <= 0:
+                stock_mensual = None
+        except (ValueError, TypeError):
+            stock_mensual = None
     pid = db.add_ally_product(
         int(ally_id), name,
         data.get("description", ""),
         data.get("price", ""),
         None,
-        int(data.get("points_required", 0))
+        int(data.get("points_required", 0)),
+        stock_mensual
     )
     return jsonify({"ok": True, "id": pid})
 
@@ -693,8 +729,19 @@ def admin_create_product():
 def admin_update_product(pid):
     db.init_db()
     data = request.json
-    allowed = {"name", "description", "price", "ally_id", "points_required"}
+    allowed = {"name", "description", "price", "ally_id", "points_required", "stock_mensual"}
     updates = {k: v for k, v in data.items() if k in allowed}
+    # Normalizar stock_mensual: vacío o <=0 => NULL (ilimitado)
+    if "stock_mensual" in updates:
+        v = updates["stock_mensual"]
+        if v in ("", None):
+            updates["stock_mensual"] = None
+        else:
+            try:
+                v_int = int(v)
+                updates["stock_mensual"] = v_int if v_int > 0 else None
+            except (ValueError, TypeError):
+                updates["stock_mensual"] = None
     if not updates:
         return jsonify({"ok": True})
     set_clause = ", ".join(f"{k} = ?" for k in updates)

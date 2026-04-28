@@ -171,7 +171,7 @@ tr:hover td{background:rgba(255,193,7,.03)}
         </select>
       </div>
       <div class="table-wrap"><table>
-        <thead><tr><th>ID</th><th>Empresa</th><th>Producto</th><th>Descripcion</th><th>Precio</th><th>Puntos</th><th>Foto</th><th>Acciones</th></tr></thead>
+        <thead><tr><th>ID</th><th>Empresa</th><th>Producto</th><th>Descripcion</th><th>Precio</th><th>Puntos</th><th>Stock mes</th><th>Foto</th><th>Acciones</th></tr></thead>
         <tbody id="productsTable"></tbody>
       </table></div>
     </div>
@@ -366,6 +366,7 @@ tr:hover td{background:rgba(255,193,7,.03)}
     <div class="field"><label>Descripcion</label><input type="text" id="npDesc"></div>
     <div class="field"><label>Precio</label><input type="text" id="npPrice" placeholder="$XX.XXX COP"></div>
     <div class="field"><label>Puntos para canjear (0 = no canjeable)</label><input type="number" id="npPoints" min="0" value="0"></div>
+    <div class="field"><label>Stock mensual (vacío = sin límite)</label><input type="number" id="npStock" min="0" placeholder="Ej: 30 (vacío para ilimitado)"></div>
     <div class="modal-actions">
       <button class="btn btn-red" onclick="closeModal('newProductModal')">Cancelar</button>
       <button class="btn btn-accent" onclick="createProduct()">Crear</button>
@@ -383,6 +384,7 @@ tr:hover td{background:rgba(255,193,7,.03)}
     <div class="field"><label>Descripcion</label><input type="text" id="eprodDesc"></div>
     <div class="field"><label>Precio</label><input type="text" id="eprodPrice"></div>
     <div class="field"><label>Puntos para canjear (0 = no canjeable)</label><input type="number" id="eprodPoints" min="0"></div>
+    <div class="field"><label>Stock mensual (vacío = sin límite)</label><input type="number" id="eprodStock" min="0" placeholder="Ej: 30 (vacío para ilimitado)"></div>
     <div class="modal-actions">
       <button class="btn btn-red" onclick="closeModal('editProductModal')">Cancelar</button>
       <button class="btn btn-accent" onclick="saveProduct()">Guardar</button>
@@ -813,21 +815,33 @@ async function loadProducts(){
   }
   const fv=filter.value;
   const filtered=fv==='all'?data:data.filter(p=>p.ally_id==fv);
-  if(!filtered.length){tb.innerHTML='<tr><td colspan="8" class="empty">No hay productos</td></tr>';return}
+  if(!filtered.length){tb.innerHTML='<tr><td colspan="9" class="empty">No hay productos</td></tr>';return}
   window._productsData=filtered;
-  tb.innerHTML=filtered.map(p=>`<tr>
+  tb.innerHTML=filtered.map(p=>{
+    let stockHtml='';
+    if(p.stock_mensual==null || p.stock_mensual===''){
+      stockHtml='<span style="color:var(--subtle);font-size:.78rem">∞ ilimitado</span>';
+    }else{
+      const used=p.canjes_mes_actual||0;
+      const total=p.stock_mensual;
+      const pct=Math.min(100,Math.round((used/total)*100));
+      const color=pct>=100?'var(--red)':pct>=80?'var(--orange)':'var(--green)';
+      stockHtml=`<div style="font-size:.78rem"><strong style="color:${color}">${used}/${total}</strong> (${pct}%)<div style="height:4px;background:var(--input-bg);border-radius:2px;margin-top:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${color}"></div></div></div>`;
+    }
+    return `<tr>
     <td>${p.id}</td>
     <td style="font-size:.8rem">${p.business_name||'-'}</td>
     <td><strong>${p.name}</strong></td>
     <td style="font-size:.8rem;max-width:200px">${p.description||'-'}</td>
     <td>${p.price||'-'}</td>
     <td>${p.points_required?`<strong style="color:var(--accent)">${p.points_required} pts</strong>`:'<span style="color:var(--subtle)">No canjeable</span>'}</td>
+    <td>${stockHtml}</td>
     <td>${p.photo_path?`<img src="/uploads/${p.photo_path}" style="width:40px;height:40px;border-radius:4px;object-fit:cover">`:'-'}</td>
     <td><div class="btn-group">
       <button class="btn btn-sm btn-blue" onclick="editProduct(${p.id})">Editar</button>
       <button class="btn btn-sm btn-red" onclick="deleteProductAdmin(${p.id})">Eliminar</button>
     </div></td>
-  </tr>`).join('');
+  </tr>`}).join('');
 }
 
 async function showNewProduct(){
@@ -835,6 +849,8 @@ async function showNewProduct(){
   document.getElementById('npName').value='';
   document.getElementById('npDesc').value='';
   document.getElementById('npPrice').value='';
+  document.getElementById('npPoints').value='0';
+  document.getElementById('npStock').value='';
   document.getElementById('newProductModal').classList.add('show');
 }
 
@@ -844,11 +860,13 @@ async function createProduct(){
   if(!name){alert('El nombre es obligatorio');return}
   if(!ally){alert('Selecciona una empresa');return}
   try{
+    const stockVal=document.getElementById('npStock').value.trim();
     const r=await fetch('/api/admin/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       ally_id:parseInt(ally),name:name,
       description:document.getElementById('npDesc').value.trim(),
       price:document.getElementById('npPrice').value.trim(),
-      points_required:parseInt(document.getElementById('npPoints').value)||0
+      points_required:parseInt(document.getElementById('npPoints').value)||0,
+      stock_mensual: stockVal === '' ? null : parseInt(stockVal)
     })});
     const res=await r.json();
     if(res.ok){closeModal('newProductModal');loadProducts();loadDashboard();alert('Producto creado')}
@@ -865,17 +883,20 @@ async function editProduct(id){
   document.getElementById('eprodDesc').value=p.description||'';
   document.getElementById('eprodPrice').value=p.price||'';
   document.getElementById('eprodPoints').value=p.points_required||0;
+  document.getElementById('eprodStock').value=(p.stock_mensual==null||p.stock_mensual==='')?'':p.stock_mensual;
   document.getElementById('editProductModal').classList.add('show');
 }
 
 async function saveProduct(){
   const id=document.getElementById('eprodId').value;
+  const stockVal=document.getElementById('eprodStock').value.trim();
   const data={
     name:document.getElementById('eprodName').value.trim(),
     description:document.getElementById('eprodDesc').value.trim(),
     price:document.getElementById('eprodPrice').value.trim(),
     points_required:parseInt(document.getElementById('eprodPoints').value)||0,
     ally_id:parseInt(document.getElementById('eprodAllyId').value)||null,
+    stock_mensual: stockVal === '' ? null : parseInt(stockVal),
   };
   try{
     const r=await fetch('/api/admin/products/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});

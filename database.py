@@ -95,15 +95,18 @@ def init_db():
         );
 
         CREATE TABLE IF NOT EXISTS ally_products (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            ally_id         INTEGER REFERENCES allies(id),
-            name            TEXT NOT NULL,
-            description     TEXT,
-            price           TEXT,
-            photo_path      TEXT,
-            points_required INTEGER DEFAULT 0,
-            is_active       INTEGER DEFAULT 1,
-            created_at      TEXT DEFAULT (datetime('now'))
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            ally_id             INTEGER REFERENCES allies(id),
+            name                TEXT NOT NULL,
+            description         TEXT,
+            price               TEXT,
+            photo_path          TEXT,
+            points_required     INTEGER DEFAULT 0,
+            is_active           INTEGER DEFAULT 1,
+            stock_mensual       INTEGER DEFAULT NULL,
+            canjes_mes_actual   INTEGER DEFAULT 0,
+            mes_actual          TEXT DEFAULT '',
+            created_at          TEXT DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS rewards (
@@ -478,13 +481,88 @@ def create_ally(business_name, owner_name, phone, email, location, city,
         return cur.lastrowid
 
 
-def add_ally_product(ally_id, name, description, price, photo_path, points_required=0):
+def add_ally_product(ally_id, name, description, price, photo_path, points_required=0, stock_mensual=None):
     with get_conn() as conn:
         cur = conn.execute("""
-            INSERT INTO ally_products (ally_id, name, description, price, photo_path, points_required)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (ally_id, name, description, price, photo_path, points_required))
+            INSERT INTO ally_products (ally_id, name, description, price, photo_path, points_required, stock_mensual)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (ally_id, name, description, price, photo_path, points_required, stock_mensual))
         return cur.lastrowid
+
+
+def _current_month_str():
+    from datetime import datetime
+    return datetime.now().strftime("%Y-%m")
+
+
+def reset_product_stock_if_new_month(product_id: int):
+    """Si el mes actual es distinto al guardado, resetea el contador del producto."""
+    current = _current_month_str()
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT mes_actual FROM ally_products WHERE id = ?", (product_id,)
+        ).fetchone()
+        if row and row["mes_actual"] != current:
+            conn.execute(
+                "UPDATE ally_products SET canjes_mes_actual = 0, mes_actual = ? WHERE id = ?",
+                (current, product_id)
+            )
+
+
+def reset_all_products_stock_if_needed():
+    """Resetea el contador de TODOS los productos cuyo mes guardado != mes actual."""
+    current = _current_month_str()
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE ally_products SET canjes_mes_actual = 0, mes_actual = ? WHERE mes_actual != ?",
+            (current, current)
+        )
+
+
+def product_has_stock(product_id: int) -> bool:
+    """True si el producto tiene stock disponible (o es ilimitado)."""
+    reset_product_stock_if_new_month(product_id)
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT stock_mensual, canjes_mes_actual FROM ally_products WHERE id = ?",
+            (product_id,)
+        ).fetchone()
+        if not row:
+            return False
+        # NULL = ilimitado
+        if row["stock_mensual"] is None:
+            return True
+        return row["canjes_mes_actual"] < row["stock_mensual"]
+
+
+def increment_product_redemption(product_id: int) -> dict:
+    """
+    Incrementa el contador de canjes del producto. Retorna info útil.
+    {ok, new_count, stock, percent, just_crossed_80}
+    """
+    reset_product_stock_if_new_month(product_id)
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT stock_mensual, canjes_mes_actual FROM ally_products WHERE id = ?",
+            (product_id,)
+        ).fetchone()
+        if not row:
+            return {"ok": False}
+        prev = row["canjes_mes_actual"] or 0
+        stock = row["stock_mensual"]
+        new_count = prev + 1
+        conn.execute(
+            "UPDATE ally_products SET canjes_mes_actual = ? WHERE id = ?",
+            (new_count, product_id)
+        )
+        if stock is None:
+            return {"ok": True, "new_count": new_count, "stock": None,
+                    "percent": None, "just_crossed_80": False}
+        percent = (new_count / stock) * 100
+        prev_percent = (prev / stock) * 100 if stock > 0 else 0
+        just_80 = prev_percent < 80 and percent >= 80
+        return {"ok": True, "new_count": new_count, "stock": stock,
+                "percent": percent, "just_crossed_80": just_80}
 
 
 def get_product(product_id):
@@ -499,13 +577,18 @@ def get_product(product_id):
 
 
 def list_redeemable_products():
-    """Lista productos canjeables (con puntos > 0 y activos)."""
+    """Lista productos canjeables (con puntos > 0, activos, con stock disponible este mes)."""
+    # Reset masivo de productos si cambió el mes
+    reset_all_products_stock_if_needed()
     with get_conn() as conn:
         rows = conn.execute("""
             SELECT p.*, a.business_name as provider
             FROM ally_products p
             JOIN allies a ON a.id = p.ally_id
-            WHERE p.points_required > 0 AND p.is_active = 1 AND a.status = 'approved'
+            WHERE p.points_required > 0
+              AND p.is_active = 1
+              AND a.status = 'approved'
+              AND (p.stock_mensual IS NULL OR p.canjes_mes_actual < p.stock_mensual)
             ORDER BY a.business_name, p.points_required ASC
         """).fetchall()
         return [dict(r) for r in rows]

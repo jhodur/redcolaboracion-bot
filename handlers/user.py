@@ -163,6 +163,17 @@ async def _process_redeem(update: Update, context: ContextTypes.DEFAULT_TYPE, pa
         )
         return
 
+    # Verificar stock disponible este mes
+    if not db.product_has_stock(product_id):
+        logger.info(f"[REDEEM] Sin stock product={product_id}")
+        await update.message.reply_text(
+            "🔒 Este premio se agotó por este mes\n"
+            "━━━━━━━━━━━━━━━━━\n"
+            "Vuelve el próximo mes o canjea otro premio.\n\n"
+            "Usa /canjear para ver los disponibles."
+        )
+        return
+
     success = db.subtract_points(user_id, product["points_required"])
     logger.info(f"[REDEEM] subtract_points success={success}")
     if not success:
@@ -171,8 +182,9 @@ async def _process_redeem(update: Update, context: ContextTypes.DEFAULT_TYPE, pa
 
     voucher_code = secrets.token_hex(4).upper()
     db.create_redemption(user_id, product_id, product["points_required"], voucher_code)
+    stock_info = db.increment_product_redemption(product_id)
     updated_user = db.get_user(user_id)
-    logger.info(f"[REDEEM] Redemption creada code={voucher_code}")
+    logger.info(f"[REDEEM] Redemption creada code={voucher_code} stock={stock_info}")
 
     try:
         voucher_path = generate_voucher(
@@ -216,12 +228,12 @@ async def _process_redeem(update: Update, context: ContextTypes.DEFAULT_TYPE, pa
 
     # Notificar al proveedor por Telegram
     try:
-        await _notify_provider(context.bot, product, user, voucher_code)
+        await _notify_provider(context.bot, product, user, voucher_code, stock_info)
     except Exception as e:
         logger.exception(f"[REDEEM] Error notificando provider: {e}")
 
 
-async def _notify_provider(bot, product, user, voucher_code):
+async def _notify_provider(bot, product, user, voucher_code, stock_info=None):
     """Envía notificación al contacto de Telegram del proveedor."""
     try:
         tg_user = product.get("telegram_user", "")
@@ -238,21 +250,44 @@ async def _notify_provider(bot, product, user, voucher_code):
         ).fetchone()
         conn.close()
 
-        if row:
-            await bot.send_message(
-                chat_id=row["user_id"],
-                text=(
-                    "🔔 ¡Nuevo Canje en tu Empresa!\n"
-                    "━━━━━━━━━━━━━━━━━\n"
-                    f"🏢 {product['provider']}\n"
-                    f"👤 Cliente: {user['full_name']}\n"
-                    f"🎁 Producto: {product['name']}\n"
-                    f"💰 Puntos canjeados: {product['points_required']}\n"
-                    "━━━━━━━━━━━━━━━━━\n"
-                    f"🎟️ Código: {voucher_code}\n\n"
-                    "El cliente presentará este código para redimir su premio."
-                )
+        if not row:
+            return
+
+        provider_chat_id = row["user_id"]
+
+        # Notificación principal del canje
+        await bot.send_message(
+            chat_id=provider_chat_id,
+            text=(
+                "🔔 ¡Nuevo Canje en tu Empresa!\n"
+                "━━━━━━━━━━━━━━━━━\n"
+                f"🏢 {product['provider']}\n"
+                f"👤 Cliente: {user['full_name']}\n"
+                f"🎁 Producto: {product['name']}\n"
+                f"💰 Puntos canjeados: {product['points_required']}\n"
+                "━━━━━━━━━━━━━━━━━\n"
+                f"🎟️ Código: {voucher_code}\n\n"
+                "El cliente presentará este código para redimir su premio."
             )
+        )
+
+        # Alerta de stock al 80%
+        if stock_info and stock_info.get("just_crossed_80"):
+            try:
+                await bot.send_message(
+                    chat_id=provider_chat_id,
+                    text=(
+                        "⚠️ Alerta de Stock\n"
+                        "━━━━━━━━━━━━━━━━━\n"
+                        f"🎁 {product['name']}\n"
+                        f"🏢 {product['provider']}\n\n"
+                        f"📊 Cupos canjeados este mes: {stock_info['new_count']} de {stock_info['stock']}\n"
+                        f"📈 {stock_info['percent']:.0f}% del stock mensual\n\n"
+                        "Si quieres ampliar el cupo del mes, ajústalo en el panel admin."
+                    )
+                )
+            except Exception as alert_err:
+                logger.warning(f"No se pudo enviar alerta 80%: {alert_err}")
     except Exception as e:
         logger.warning(f"No se pudo notificar al proveedor: {e}")
 
@@ -444,6 +479,15 @@ async def _process_redeem_callback(query, context, product_id_str):
         )
         return
 
+    if not db.product_has_stock(product_id):
+        await query.edit_message_text(
+            "🔒 Este premio se agotó por este mes\n"
+            "━━━━━━━━━━━━━━━━━\n"
+            "Vuelve el próximo mes o canjea otro premio.\n\n"
+            "Usa /canjear para ver los disponibles."
+        )
+        return
+
     success = db.subtract_points(user_id, product["points_required"])
     if not success:
         await query.edit_message_text("❌ Error al procesar el canje. Intenta de nuevo.")
@@ -451,8 +495,9 @@ async def _process_redeem_callback(query, context, product_id_str):
 
     voucher_code = secrets.token_hex(4).upper()
     db.create_redemption(user_id, product_id, product["points_required"], voucher_code)
+    stock_info = db.increment_product_redemption(product_id)
     updated_user = db.get_user(user_id)
-    logger.info(f"[REDEEM_CB] Redemption code={voucher_code}")
+    logger.info(f"[REDEEM_CB] Redemption code={voucher_code} stock={stock_info}")
 
     try:
         voucher_path = generate_voucher(
@@ -493,7 +538,7 @@ async def _process_redeem_callback(query, context, product_id_str):
             logger.exception(f"[REDEEM_CB] Error enviando voucher: {e}")
 
     try:
-        await _notify_provider(context.bot, product, user, voucher_code)
+        await _notify_provider(context.bot, product, user, voucher_code, stock_info)
     except Exception as e:
         logger.exception(f"[REDEEM_CB] Error notificando provider: {e}")
 
