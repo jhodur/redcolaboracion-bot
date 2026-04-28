@@ -180,10 +180,10 @@ async def detect_and_validate(bot, user_id: int, screenshot_path: str):
     if not active_tasks:
         return {"ok": False, "error": "no_active_tasks"}
 
-    # Filtrar tareas que el usuario ya completó hoy (para evitar duplicados)
+    # Filtrar tareas que el usuario ya completó hoy (chequea por task_id, no scheduled_id)
     available = []
     for t in active_tasks:
-        if not db.has_completed_task(user_id, t["scheduled_id"]):
+        if not db.has_completed_task_id(user_id, t["id"]):
             available.append(t)
 
     if not available:

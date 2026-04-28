@@ -275,6 +275,35 @@ def admin_delete_ally(aid):
     return jsonify({"ok": True})
 
 
+@app.route("/api/admin/debug/reject-completion/<int:cid>", methods=["POST"])
+def admin_reject_completion(cid):
+    """Marca una completion como rejected (ej: para revertir un duplicado)."""
+    db.init_db()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute(
+            "UPDATE task_completions SET status='rejected', points_awarded=0, reviewed_at=datetime('now') WHERE id=?",
+            (cid,)
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/admin/debug/subtract/<int:user_id>/<int:points>", methods=["POST"])
+def admin_subtract_points(user_id, points):
+    """Descuenta puntos de un usuario (ej: para revertir un duplicado)."""
+    db.init_db()
+    try:
+        db.subtract_points(user_id, points)
+        u = db.get_user(user_id)
+        return jsonify({"ok": True, "user": u})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @app.route("/api/admin/debug/approve-completion/<int:cid>/<int:points>", methods=["POST"])
 def admin_approve_completion(cid, points):
     """Marca una completion como approved con los puntos dados (no agrega puntos al usuario)."""

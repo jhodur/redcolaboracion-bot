@@ -263,20 +263,25 @@ def list_upcoming_scheduled():
 
 
 def list_active_tasks_today():
-    """Tareas publicadas hoy que aún están abiertas a recibir evidencia."""
+    """
+    Tareas publicadas hoy que aún están abiertas a recibir evidencia.
+    Una sola entrada por task_id (toma el slot más reciente del día).
+    """
     with get_conn() as conn:
         rows = conn.execute("""
-            SELECT DISTINCT t.id, t.title, t.description, t.instructions,
+            SELECT t.id, t.title, t.description, t.instructions,
                    t.target_url, t.points_value, t.ally_id,
                    COALESCE(a.business_name, '') as business_name,
-                   st.id as scheduled_id, st.send_at
+                   MAX(st.id) as scheduled_id,
+                   MAX(st.send_at) as send_at
             FROM scheduled_tasks st
             JOIN tasks t ON t.id = st.task_id
             LEFT JOIN allies a ON a.id = t.ally_id
             WHERE st.sent = 1
               AND t.is_active = 1
               AND date(st.send_at) = date('now', 'localtime')
-            ORDER BY st.send_at DESC
+            GROUP BY t.id
+            ORDER BY MAX(st.send_at) DESC
         """).fetchall()
         return [dict(r) for r in rows]
 
@@ -284,13 +289,20 @@ def list_active_tasks_today():
 # ─── Task Completions ────────────────────────────────────────────────────────
 
 def submit_completion(user_id: int, task_id: int, scheduled_id: int, screenshot_path: str):
+    """
+    Crea una completion. Solo se permite UNA completion (no rechazada) por
+    (user_id, task_id) por día — sin importar el scheduled_id.
+    """
     with get_conn() as conn:
         existing = conn.execute("""
             SELECT id FROM task_completions
-            WHERE user_id = ? AND scheduled_id = ? AND status != 'rejected'
-        """, (user_id, scheduled_id)).fetchone()
+            WHERE user_id = ?
+              AND task_id = ?
+              AND status != 'rejected'
+              AND date(submitted_at) = date('now', 'localtime')
+        """, (user_id, task_id)).fetchone()
         if existing:
-            return None  # ya enviado
+            return None  # ya enviado hoy para esta tarea
         cur = conn.execute("""
             INSERT INTO task_completions (user_id, task_id, scheduled_id, screenshot_path)
             VALUES (?, ?, ?, ?)
@@ -320,11 +332,33 @@ def get_completion(completion_id: int):
 
 
 def has_completed_task(user_id: int, scheduled_id: int) -> bool:
+    """
+    Verifica si el usuario ya completó (aprobada) la tarea asociada al scheduled_id
+    en el día de hoy. La verificación se hace por task_id, no por scheduled_id,
+    porque la misma tarea puede estar programada varias veces el mismo día.
+    """
+    with get_conn() as conn:
+        row = conn.execute("""
+            SELECT tc.id
+            FROM task_completions tc
+            JOIN scheduled_tasks st ON st.id = ?
+            WHERE tc.user_id = ?
+              AND tc.task_id = st.task_id
+              AND tc.status = 'approved'
+              AND date(tc.submitted_at) = date('now', 'localtime')
+        """, (scheduled_id, user_id)).fetchone()
+        return row is not None
+
+
+def has_completed_task_id(user_id: int, task_id: int) -> bool:
+    """Verifica si el usuario ya completó (aprobada) esta task_id hoy."""
     with get_conn() as conn:
         row = conn.execute("""
             SELECT id FROM task_completions
-            WHERE user_id = ? AND scheduled_id = ? AND status = 'approved'
-        """, (user_id, scheduled_id)).fetchone()
+            WHERE user_id = ? AND task_id = ?
+              AND status = 'approved'
+              AND date(submitted_at) = date('now', 'localtime')
+        """, (user_id, task_id)).fetchone()
         return row is not None
 
 
