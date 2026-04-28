@@ -693,7 +693,7 @@ async function loadTasks(){
     <td style="font-size:.75rem;max-width:150px;overflow:hidden;text-overflow:ellipsis">${t.target_url||'-'}</td>
     <td><span class="badge-status ${t.is_active?'badge-active':'badge-used'}">${t.is_active?'Activa':'Inactiva'}</span></td>
     <td style="font-size:.78rem">${(t.created_at||'').slice(0,10)}</td>
-    <td><div class="btn-group">${t.is_active?`<button class="btn btn-sm btn-blue" onclick="editTask(${t.id})">Editar</button><button class="btn btn-sm btn-red" onclick="deactivateTask(${t.id})">Desactivar</button>`:''}</div></td>
+    <td><div class="btn-group">${t.is_active?`<button class="btn btn-sm btn-green" onclick="scheduleTaskNow(${t.id})" title="Lanzar al canal ahora">📢 Lanzar</button><button class="btn btn-sm btn-blue" onclick="editTask(${t.id})">Editar</button><button class="btn btn-sm btn-red" onclick="deactivateTask(${t.id})">Desactivar</button>`:''}</div></td>
   </tr>`}).join('');
 }
 async function populateAllySelect(selectId, selectedId){
@@ -774,6 +774,30 @@ async function saveTask(){
 }
 
 async function deactivateTask(tid){await api(`/api/admin/tasks/${tid}`,{method:'DELETE'});loadTasks();loadDashboard()}
+
+async function scheduleTaskNow(tid){
+  const choice = confirm("¿Lanzar esta tarea al canal ahora?\n\nAceptar: Envío inmediato (próximos 60 seg)\nCancelar: Programar para después");
+  let send_at = null;
+  if(!choice){
+    const when = prompt("Fecha y hora de envío (formato: YYYY-MM-DD HH:MM)\nEjemplo: 2026-04-29 14:30","");
+    if(!when) return;
+    send_at = when.length === 16 ? when + ":00" : when;
+  }
+  try{
+    const r = await fetch(`/api/admin/tasks/${tid}/schedule`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(send_at ? {send_at} : {})
+    });
+    const res = await r.json();
+    if(res.ok){
+      alert(`✅ Tarea programada\n\n📌 ${res.task_title}\n📅 ${res.send_at}\n\nSe enviará al canal automáticamente.`);
+      loadTasks();
+    }else{
+      alert("Error: " + (res.error || "desconocido"));
+    }
+  }catch(e){ alert("Error: " + e.message); }
+}
 
 // Products
 async function loadProducts(){

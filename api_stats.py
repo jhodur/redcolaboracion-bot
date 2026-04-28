@@ -561,6 +561,29 @@ def admin_create_task():
     return jsonify({"ok": True, "id": tid})
 
 
+@app.route("/api/admin/tasks/<int:tid>/schedule", methods=["POST"])
+def admin_schedule_task(tid):
+    """
+    Programa una tarea para envío al canal.
+    body opcional: {"send_at": "YYYY-MM-DD HH:MM:SS"} (default: ahora = envío inmediato)
+    """
+    db.init_db()
+    task = db.get_task(tid)
+    if not task:
+        return jsonify({"ok": False, "error": "Tarea no encontrada"}), 404
+
+    data = request.json or {}
+    send_at = data.get("send_at") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    sched_id = db.schedule_task(tid, send_at)
+    return jsonify({
+        "ok": True,
+        "scheduled_id": sched_id,
+        "send_at": send_at,
+        "task_title": task["title"]
+    })
+
+
 @app.route("/api/admin/tasks/<int:tid>", methods=["PUT"])
 def admin_update_task(tid):
     db.init_db()

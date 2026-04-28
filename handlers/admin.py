@@ -214,19 +214,26 @@ async def programar_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         send_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         db.schedule_task(task_id, send_at)
         await update.message.reply_text(
-            f"✅ Tarea programada para envio inmediato!\n\n"
+            "✅ Tarea programada para envío inmediato\n"
+            "━━━━━━━━━━━━━━━━━\n"
             f"📌 {task['title']}\n"
             f"💰 {task['points_value']} puntos\n\n"
-            "Aparecera en el canal en maximo 60 segundos.",
+            "Aparecerá en el canal en máximo 60 segundos."
         )
         return
 
     # Mostrar lista para que elija
-    lines = ["📅 *Tareas disponibles para programar:*\n"]
+    lines = [
+        "📅 Tareas disponibles para programar",
+        "━━━━━━━━━━━━━━━━━"
+    ]
     for t in tasks:
-        lines.append(f"📌 ID `{t['id']}` — *{t['title']}* ({t['points_value']} pts)")
-    lines.append("\nPara enviar una tarea escribe:\n`/programar ID`\n\nEjemplo: `/programar 2`")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        lines.append(f"\n📌 ID {t['id']} — {t['title']}\n   💰 {t['points_value']} pts")
+    lines.append("\n━━━━━━━━━━━━━━━━━")
+    lines.append("Para enviar una tarea escribe:")
+    lines.append("/programar ID")
+    lines.append("Ejemplo: /programar 2")
+    await update.message.reply_text("\n".join(lines))
 
 
 # ─── Próximos envíos ──────────────────────────────────────────────────────────
