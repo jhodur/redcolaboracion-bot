@@ -255,7 +255,32 @@ async def _notify_provider(bot, product, user, voucher_code, stock_info=None):
 
         provider_chat_id = row["user_id"]
 
-        # Notificación principal del canje
+        # Construir resumen del inventario restante de la empresa
+        ally_id = product.get("ally_id")
+        inventory_lines = []
+        if ally_id:
+            try:
+                inventory = db.get_ally_remaining_inventory(ally_id)
+                if inventory:
+                    inventory_lines.append("📦 Tu Inventario del Mes")
+                    inventory_lines.append("━━━━━━━━━━━━━━━━━")
+                    for item in inventory:
+                        if item["remaining"] is None:
+                            estado = "∞ ilimitado"
+                        elif item["remaining"] == 0:
+                            estado = f"🔴 AGOTADO ({item['canjes_mes_actual']}/{item['stock_mensual']})"
+                        else:
+                            estado = f"{item['remaining']} disponibles ({item['canjes_mes_actual']}/{item['stock_mensual']})"
+                        inventory_lines.append(
+                            f"🎁 {item['name']} — {item['points_required']} pts\n"
+                            f"   {estado}"
+                        )
+            except Exception as inv_err:
+                logger.warning(f"No se pudo obtener inventario: {inv_err}")
+
+        inventory_block = ("\n\n" + "\n".join(inventory_lines)) if inventory_lines else ""
+
+        # Notificación principal del canje + inventario restante
         await bot.send_message(
             chat_id=provider_chat_id,
             text=(
@@ -268,6 +293,7 @@ async def _notify_provider(bot, product, user, voucher_code, stock_info=None):
                 "━━━━━━━━━━━━━━━━━\n"
                 f"🎟️ Código: {voucher_code}\n\n"
                 "El cliente presentará este código para redimir su premio."
+                f"{inventory_block}"
             )
         )
 

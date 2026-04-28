@@ -594,6 +594,40 @@ def list_redeemable_products():
         return [dict(r) for r in rows]
 
 
+def get_ally_remaining_inventory(ally_id: int):
+    """
+    Devuelve los productos canjeables activos de una empresa con su stock restante.
+    Útil para enviar a la empresa al notificar canjes.
+    """
+    reset_all_products_stock_if_needed()
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT id, name, points_required, stock_mensual, canjes_mes_actual
+            FROM ally_products
+            WHERE ally_id = ?
+              AND is_active = 1
+              AND points_required > 0
+            ORDER BY points_required ASC, name ASC
+        """, (ally_id,)).fetchall()
+        result = []
+        for r in rows:
+            stock = r["stock_mensual"]
+            used = r["canjes_mes_actual"] or 0
+            if stock is None:
+                remaining = None  # ilimitado
+            else:
+                remaining = max(0, stock - used)
+            result.append({
+                "id": r["id"],
+                "name": r["name"],
+                "points_required": r["points_required"],
+                "stock_mensual": stock,
+                "canjes_mes_actual": used,
+                "remaining": remaining,
+            })
+        return result
+
+
 def list_allies(status=None):
     with get_conn() as conn:
         if status:
