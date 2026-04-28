@@ -168,25 +168,21 @@ async def validate_screenshot(bot, pending: dict):
 
 async def detect_and_validate(bot, user_id: int, screenshot_path: str):
     """
-    Detecta automáticamente a qué tarea activa del día corresponde el screenshot.
-    Solo considera tareas publicadas hoy (las de días anteriores ya no aplican).
+    Detecta automáticamente a qué tarea pendiente del usuario corresponde el screenshot.
+    Considera todas las tareas activas que el usuario aún no haya completado.
     Si detecta y valida, registra la completion y otorga puntos.
     Retorna dict con resultado.
     """
     if not os.path.exists(screenshot_path):
         return {"ok": False, "error": "Archivo no encontrado"}
 
-    active_tasks = db.list_active_tasks_today()
-    if not active_tasks:
-        return {"ok": False, "error": "no_active_tasks"}
-
-    # Filtrar tareas que el usuario ya completó hoy (chequea por task_id, no scheduled_id)
-    available = []
-    for t in active_tasks:
-        if not db.has_completed_task_id(user_id, t["id"]):
-            available.append(t)
-
+    # Tareas activas pendientes para este usuario (las que aún no completó)
+    available = db.list_pending_tasks_for_user(user_id)
     if not available:
+        # Verificar si es porque ya las completó todas o porque no hay activas
+        all_active = db.list_active_tasks()
+        if not all_active:
+            return {"ok": False, "error": "no_active_tasks"}
         return {"ok": False, "error": "all_completed"}
 
     try:

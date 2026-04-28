@@ -654,13 +654,12 @@ async def receive_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     user = _ensure_user(update)
 
-    # Verificar que haya tareas activas hoy
-    active_today = db.list_active_tasks_today()
-    if not active_today:
+    # Verificar que el usuario tenga tareas pendientes
+    pending = db.list_pending_tasks_for_user(user["user_id"])
+    if not pending:
         await update.message.reply_text(
-            "⚠️ No hay tareas activas hoy.\n"
-            "Las tareas solo se pueden completar el mismo día en que se publican.\n\n"
-            "Mantente atento al canal para las próximas tareas."
+            "✅ No tienes tareas pendientes por completar.\n\n"
+            "Espera nuevas tareas en el canal."
         )
         return
 
@@ -684,11 +683,12 @@ async def receive_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE)
         err = result.get("error", "")
         if err == "no_active_tasks":
             await update.message.reply_text(
-                "⚠️ No hay tareas activas hoy. Espera la próxima publicación."
+                "⚠️ No hay tareas activas en este momento. Espera la próxima publicación en el canal."
             )
         elif err == "all_completed":
             await update.message.reply_text(
-                "✅ Ya completaste todas las tareas de hoy. ¡Espera las de mañana!"
+                "✅ Ya completaste todas las tareas pendientes. ¡Buen trabajo!\n\n"
+                "Espera nuevas tareas en el canal."
             )
         elif err == "no_match":
             reason = result.get("reason", "")
@@ -696,7 +696,7 @@ async def receive_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 f"❌ No pude identificar a qué tarea corresponde este screenshot.\n\n"
                 f"{reason}\n\n"
                 "Asegúrate de que el screenshot muestre claramente la acción "
-                "realizada en la página/empresa indicada en alguna de las tareas activas hoy."
+                "realizada en la página/empresa indicada en alguna de tus tareas pendientes."
             )
         elif err == "duplicate":
             await update.message.reply_text(
@@ -774,50 +774,97 @@ async def _send_welcome(bot, chat_id, member):
 # ─── /tareas ─────────────────────────────────────────────────────────────────
 
 async def ver_tareas(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Lista tareas activas. /tareas → empresas con tareas; /tareas <empresa> → tareas de esa empresa."""
-    import sqlite3
-    from config import DB_PATH
+    """Lista empresas con tareas pendientes. El usuario elige una empresa con botón."""
+    user = _ensure_user(update)
+    pending = db.list_pending_tasks_for_user(user["user_id"])
 
-    args = context.args
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-
-    # Tareas activas (envíadas en las últimas 48h)
-    sent_tasks = conn.execute("""
-        SELECT st.id, st.send_at, t.id as task_id, t.title, t.description, t.instructions,
-               t.target_url, t.points_value, t.ally_id,
-               COALESCE(a.business_name, 'Sin empresa') as business_name
-        FROM scheduled_tasks st
-        JOIN tasks t ON t.id = st.task_id
-        LEFT JOIN allies a ON a.id = t.ally_id
-        WHERE st.sent = 1
-          AND st.send_at >= datetime('now', '-48 hours')
-          AND t.is_active = 1
-        ORDER BY st.send_at DESC
-    """).fetchall()
-    conn.close()
-
-    sent_tasks = [dict(t) for t in sent_tasks]
-    if not sent_tasks:
+    if not pending:
         await update.message.reply_text(
-            "No hay tareas activas en este momento. "
-            "Mantente atento al grupo de Telegram."
+            "✅ No tienes tareas pendientes por completar.\n\n"
+            "Espera nuevas publicaciones en el canal."
         )
         return
 
-    # Filtrar por empresa si se pasó argumento
-    if args:
-        provider_name = " ".join(args).lower()
-        filtered = [t for t in sent_tasks if t["business_name"].lower() == provider_name]
-        if not filtered:
-            await update.message.reply_text(f"No hay tareas activas de '{provider_name}'.")
+    # Agrupar por empresa
+    by_ally = {}
+    for t in pending:
+        ally_id = t.get("ally_id") or 0
+        name = t.get("business_name") or "Sin empresa"
+        if ally_id not in by_ally:
+            by_ally[ally_id] = {"name": name, "count": 0}
+        by_ally[ally_id]["count"] += 1
+
+    keyboard = []
+    for ally_id, info in by_ally.items():
+        keyboard.append([InlineKeyboardButton(
+            f"🏢 {info['name']} ({info['count']} tareas)",
+            callback_data=f"tar_a_{ally_id}"
+        )])
+
+    await update.message.reply_text(
+        "📌 Tus Tareas Pendientes\n"
+        "━━━━━━━━━━━━━━━━━\n"
+        "Selecciona la empresa para ver sus tareas:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def tareas_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Maneja los callbacks del flujo de /tareas."""
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+    user_id = query.from_user.id
+    db.upsert_user(user_id, query.from_user.username or "",
+                   query.from_user.full_name or query.from_user.first_name or "")
+
+    if data == "tar_back":
+        # Volver a la lista de empresas
+        pending = db.list_pending_tasks_for_user(user_id)
+        if not pending:
+            await query.edit_message_text("✅ No tienes tareas pendientes.")
+            return
+        by_ally = {}
+        for t in pending:
+            ally_id = t.get("ally_id") or 0
+            name = t.get("business_name") or "Sin empresa"
+            if ally_id not in by_ally:
+                by_ally[ally_id] = {"name": name, "count": 0}
+            by_ally[ally_id]["count"] += 1
+        keyboard = [[InlineKeyboardButton(
+            f"🏢 {info['name']} ({info['count']} tareas)",
+            callback_data=f"tar_a_{ally_id}"
+        )] for ally_id, info in by_ally.items()]
+        await query.edit_message_text(
+            "📌 Tus Tareas Pendientes\n"
+            "━━━━━━━━━━━━━━━━━\n"
+            "Selecciona la empresa para ver sus tareas:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return
+
+    if data.startswith("tar_a_"):
+        try:
+            ally_id = int(data.replace("tar_a_", ""))
+        except ValueError:
+            await query.edit_message_text("❌ Empresa no válida.")
             return
 
+        pending = db.list_pending_tasks_for_user(user_id)
+        tasks_of_ally = [t for t in pending if (t.get("ally_id") or 0) == ally_id]
+
+        if not tasks_of_ally:
+            await query.edit_message_text(
+                "✅ Ya no tienes tareas pendientes de esta empresa."
+            )
+            return
+
+        ally_name = tasks_of_ally[0].get("business_name") or "Sin empresa"
         lines = [
-            f"📌 Tareas activas — {filtered[0]['business_name']}",
+            f"🏢 {ally_name}",
             "━━━━━━━━━━━━━━━━━"
         ]
-        for t in filtered:
+        for t in tasks_of_ally:
             url_line = f"\n   🔗 {t['target_url']}" if t.get("target_url") else ""
             lines.append(
                 f"\n📌 {t['title']}\n"
@@ -827,22 +874,13 @@ async def ver_tareas(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         lines.append("\n━━━━━━━━━━━━━━━━━")
         lines.append("📸 Envía el screenshot a este chat para validar")
-        await update.message.reply_text("\n".join(lines))
+
+        keyboard = [[InlineKeyboardButton("⬅️ Volver a empresas", callback_data="tar_back")]]
+        await query.edit_message_text(
+            "\n".join(lines),
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
         return
-
-    # Sin argumento: agrupar por empresa
-    by_provider = {}
-    for t in sent_tasks:
-        by_provider.setdefault(t["business_name"], []).append(t)
-
-    lines = [
-        "📌 Tareas Activas por Empresa",
-        "━━━━━━━━━━━━━━━━━"
-    ]
-    for provider, tasks in by_provider.items():
-        lines.append(f"\n🏢 {provider} ({len(tasks)} tareas)\n   👉 /tareas {provider}")
-    lines.append("\n💡 Toca el comando para ver las tareas de esa empresa")
-    await update.message.reply_text("\n".join(lines))
 
 
 # ─── Registro ────────────────────────────────────────────────────────────────
@@ -879,6 +917,7 @@ def register(app):
     # Canjear: /canjear o /canjear <id> + callback_query handler
     app.add_handler(CommandHandler("canjear", canjear_start))
     app.add_handler(CallbackQueryHandler(canjear_callback, pattern=r"^cnj_"))
+    app.add_handler(CallbackQueryHandler(tareas_callback, pattern=r"^tar_"))
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("mis_puntos", mis_puntos))

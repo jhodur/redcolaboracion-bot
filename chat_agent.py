@@ -29,11 +29,10 @@ def _get_user_context(user_id: int) -> dict:
     if not user:
         return {}
 
-    # Tareas activas del día
-    active_tasks = db.list_active_tasks_today()
+    # Tareas pendientes del usuario (las que aún no haya completado)
+    pending_tasks = db.list_pending_tasks_for_user(user_id)
     tasks_info = []
-    for t in active_tasks:
-        completed = db.has_completed_task(user_id, t["scheduled_id"])
+    for t in pending_tasks:
         tasks_info.append({
             "id": t["id"],
             "title": t["title"],
@@ -42,7 +41,7 @@ def _get_user_context(user_id: int) -> dict:
             "url": t.get("target_url"),
             "points": t["points_value"],
             "business": t["business_name"],
-            "user_already_completed": completed,
+            "user_already_completed": False,
         })
 
     # Productos canjeables
@@ -81,7 +80,7 @@ def _get_user_context(user_id: int) -> dict:
             "username": user["username"],
             "points": user["points"],
         },
-        "active_tasks_today": tasks_info,
+        "pending_tasks": tasks_info,
         "redeemable_products": products_info,
         "recent_redemptions": red_info,
         "recent_completions": comp_info,
@@ -91,7 +90,7 @@ def _get_user_context(user_id: int) -> dict:
 def _build_system_prompt(ctx: dict) -> str:
     """Construye el system prompt con todo el contexto del usuario."""
     user = ctx.get("user", {})
-    tasks = ctx.get("active_tasks_today", [])
+    tasks = ctx.get("pending_tasks", [])
     products = ctx.get("redeemable_products", [])
     redemptions = ctx.get("recent_redemptions", [])
     completions = ctx.get("recent_completions", [])
@@ -112,22 +111,22 @@ Tu rol es responder de forma amable, breve y útil. Habla en español colombiano
 - Cada día se publican hasta 4 tareas en el canal (likes, comentarios, compartir, seguir, etc.)
 - El usuario ve la tarea, la realiza, y envía el screenshot como prueba al bot en privado
 - La IA valida el screenshot y otorga los puntos automáticamente
-- **Importante:** las tareas SOLO se pueden completar el mismo día en que se publican. Las de días anteriores YA NO sirven.
+- Una tarea queda "completada" para el usuario una vez que envía evidencia válida y se aprueba.
+- Las tareas pendientes siguen disponibles hasta que cada usuario las complete (no vencen por día).
 - Los puntos se canjean por premios (productos, descuentos, bebidas, etc.) en empresas aliadas
 - Cada premio tiene un costo en puntos. Al canjear, el bot envía un voucher con código.
 
-## TAREAS ACTIVAS HOY ({today})
+## TUS TAREAS PENDIENTES (las que aún no has completado)
 """
 
     if tasks:
         for t in tasks:
-            done = "✅ YA LA COMPLETASTE" if t["user_already_completed"] else "⏳ pendiente"
-            prompt += f"- **{t['title']}** | Empresa: {t['business']} | {t['points']} pts | {done}\n"
+            prompt += f"- {t['title']} | Empresa: {t['business']} | {t['points']} pts\n"
             prompt += f"   Descripción: {t['description']}\n"
             if t.get("url"):
                 prompt += f"   URL: {t['url']}\n"
     else:
-        prompt += "- (Hoy no hay tareas activas. El usuario debe esperar las próximas publicaciones del canal.)\n"
+        prompt += "- (No tienes tareas pendientes. ¡Ya completaste todas las disponibles! Espera nuevas publicaciones del canal.)\n"
 
     prompt += "\n## PREMIOS DISPONIBLES PARA CANJEAR\n"
     if products:
